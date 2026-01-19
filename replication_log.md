@@ -1,10 +1,10 @@
-# MiroFish Replication Log
+# Multimo Replication Log
 
-This log tracks the steps taken to replicate the MiroFish project.
+This log tracks the steps taken to replicate the Multimo project.
 
 ## Session Start
 - Date: 2026-01-19
-- Goal: Replicate MiroFish locally
+- Goal: Replicate Multimo locally
 
 ## Log Entries
 - [2026-01-19] Created .env file from .env.example.

@@ -1,8 +1,8 @@
-# MiroFish API 文档
+# Multimo API 文档
 
 ## 1. API 概述
 
-MiroFish 提供基于 REST 架构的 Web API，支持图谱构建、模拟控制、报告生成和智能体交互等功能。
+Multimo 提供基于 REST 架构的 Web API，支持图谱构建、模拟控制、报告生成和智能体交互等功能。
 
 ### 1.1 基础信息
 

@@ -1,4 +1,4 @@
-# MiroFish 开发指南
+# Multimo 开发指南
 
 ## 1. 开发环境搭建
 
@@ -14,8 +14,8 @@
 ### 1.2 克隆项目
 
 ```bash
-git clone https://github.com/666ghj/MiroFish.git
-cd MiroFish
+git clone https://github.com/666ghj/Multimo.git
+cd Multimo
 ```
 
 ### 1.3 配置环境变量
@@ -475,5 +475,5 @@ docker run -d -p 3000:3000 -p 5001:5001 \
 ## 13. 联系方式
 
 如有问题或建议，请联系：
-- 邮箱：mirofish@shanda.com
-- GitHub Issues: https://github.com/666ghj/MiroFish/issues
+- 邮箱：multimo@shanda.com
+- GitHub Issues: https://github.com/666ghj/Multimo/issues

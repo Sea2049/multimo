@@ -215,7 +215,7 @@ def validate_config() -> list[str]:
 
 if __name__ == "__main__":
     # 测试配置加载
-    print("=== MiroFish 配置信息 ===")
+    print("=== Multimo 配置信息 ===")
     print(f"调试模式: {config.DEBUG}")
     print(f"LLM 模型: {config.LLM_MODEL_NAME}")
     print(f"LLM 基础 URL: {config.LLM_BASE_URL}")

@@ -1,4 +1,4 @@
-# Export Plan for MiroFish Data
+# Export Plan for Multimo Data
 
 ## 1. Export Scope
 We want to bundle and export all data related to a simulation project, including:

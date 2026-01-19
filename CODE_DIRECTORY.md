@@ -638,8 +638,8 @@ frontend/src/api/
 ```
 frontend/src/assets/
 └── logo/                  # Logo 图片
-    ├── MiroFish_logo_left.jpeg
-    └── MiroFish_logo_compressed.jpeg
+    ├── Multimo_logo_left.jpeg
+    └── Multimo_logo_compressed.jpeg
 ```
 
 #### 3.2.4 Vue 组件 (frontend/src/components/)

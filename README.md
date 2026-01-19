@@ -24,14 +24,14 @@
 
 ## ⚡ 项目概述
 
-**MiroFish** 是一款基于多智能体技术的新一代 AI 预测引擎。通过提取现实世界的种子信息（如突发新闻、政策草案、金融信号），自动构建出高保真的平行数字世界。在此空间内，成千上万个具备独立人格、长期记忆与行为逻辑的智能体进行自由交互与社会演化。你可透过「上帝视角」动态注入变量，精准推演未来走向——**让未来在数字沙盘中预演，助决策在百战模拟后胜出**。
+**Multimo** 是一款基于多智能体技术的新一代 AI 预测引擎。通过提取现实世界的种子信息（如突发新闻、政策草案、金融信号），自动构建出高保真的平行数字世界。在此空间内，成千上万个具备独立人格、长期记忆与行为逻辑的智能体进行自由交互与社会演化。你可透过「上帝视角」动态注入变量，精准推演未来走向——**让未来在数字沙盘中预演，助决策在百战模拟后胜出**。
 
 > 你只需：上传种子材料（数据分析报告或者有趣的小说故事），并用自然语言描述预测需求</br>
-> MiroFish 将返回：一份详尽的预测报告，以及一个可深度交互的高保真数字世界
+> Multimo 将返回：一份详尽的预测报告，以及一个可深度交互的高保真数字世界
 
 ### 我们的愿景
 
-MiroFish 致力于打造映射现实的群体智能镜像，通过捕捉个体互动引发的群体涌现，突破传统预测的局限：
+Multimo 致力于打造映射现实的群体智能镜像，通过捕捉个体互动引发的群体涌现，突破传统预测的局限：
 
 - **于宏观**：我们是决策者的预演实验室，让政策与公关在零风险中试错
 - **于微观**：我们是个人用户的创意沙盘，无论是推演小说结局还是探索脑洞，皆可有趣、好玩、触手可及
@@ -60,7 +60,7 @@ MiroFish 致力于打造映射现实的群体智能镜像，通过捕捉个体�
 ## 🎬 演示视频
 
 <div align="center">
-<a href="https://www.bilibili.com/video/BV1VYBsBHEMY/" target="_blank"><img src="./static/image/武大模拟演示封面.png" alt="MiroFish Demo Video" width="75%"/></a>
+<a href="https://www.bilibili.com/video/BV1VYBsBHEMY/" target="_blank"><img src="./static/image/武大模拟演示封面.png" alt="Multimo Demo Video" width="75%"/></a>
 
 点击图片查看使用微舆BettaFish生成的《武大舆情报告》进行预测的完整演示视频
 </div>
@@ -147,7 +147,7 @@ npm run frontend  # 仅启动前端
 ## 📁 项目结构
 
 ```
-MiroFish/
+Multimo/
 ├── backend/                 # 后端 Python 应用
 │   ├── app/                 # 应用核心代码
 │   │   ├── api/            # API 路由层
@@ -214,7 +214,7 @@ MiroFish/
 
 ### 核心模块
 
-MiroFish 采用模块化架构设计，核心模块包括：
+Multimo 采用模块化架构设计，核心模块包括：
 
 #### 1. 图谱构建模块 ([`backend/app/modules/graph/`](backend/app/modules/graph/))
 - **实体提取器**：基于 LLM 的智能实体识别
@@ -275,15 +275,15 @@ MiroFish 采用模块化架构设计，核心模块包括：
 
 &nbsp;
 
-MiroFish团队长期招募全职/实习，如果你对多Agent应用感兴趣，欢迎投递简历至：**mirofish@shanda.com**
+Multimo团队长期招募全职/实习，如果你对多Agent应用感兴趣，欢迎投递简历至：**multimo@shanda.com**
 
 ## 📄 致谢
 
-**MiroFish 得到了盛大集团的战略支持和孵化！**
+**Multimo 得到了盛大集团的战略支持和孵化！**
 
-MiroFish 的仿真引擎由 **[OASIS](https://github.com/camel-ai/oasis)** 驱动，我们衷心感谢 CAMEL-AI 团队的开源贡献！
+Multimo 的仿真引擎由 **[OASIS](https://github.com/camel-ai/oasis)** 驱动，我们衷心感谢 CAMEL-AI 团队的开源贡献！
 
-感谢所有为 MiroFish 项目做出贡献的开发者和用户。
+感谢所有为 Multimo 项目做出贡献的开发者和用户。
 
 ## 📄 许可证
 
@@ -293,11 +293,11 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 
 ## 📈 项目统计
 
-<a href="https://www.star-history.com/#666ghj/MiroFish&type=date&legend=top-left">
+<a href="https://www.star-history.com/#666ghj/Multimo&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&theme=light&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=666ghj/Multimo&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=666ghj/Multimo&type=date&theme=light&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=666ghj/Multimo&type=date=legend=top-left" />
  </picture>
 </a>
 
@@ -337,7 +337,7 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 
 ## 🔗 相关链接
 
-- [GitHub 仓库](https://github.com/666ghj/MiroFish)
+- [GitHub 仓库](https://github.com/666ghj/Multimo)
 - [盛大集团](https://www.shanda.com/)
 - [OASIS 框架](https://github.com/camel-ai/oasis)
 - [CAMEL-AI](https://github.com/camel-ai/camel)

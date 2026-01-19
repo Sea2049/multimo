@@ -49,11 +49,11 @@ def create_app(config_override: dict = None) -> Flask:
     
     logger.info(f"Flask 应用初始化: DEBUG={config.DEBUG}")
     
-    # 初始化 API
-    init_api(app)
-    
-    # 注册所有路由
+    # 注册所有路由（在注册蓝图之前）
     register_routes()
+    
+    # 初始化 API（注册蓝图）
+    init_api(app)
     
     # 配置错误处理器
     register_error_handlers(app)

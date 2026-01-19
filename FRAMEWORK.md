@@ -571,5 +571,5 @@ REPORT_AGENT_TEMPERATURE=0.5
 - [OASIS](https://github.com/camel-ai/oasis) - 社交模拟引擎
 
 ### 开源许可
-- MiroFish: MIT License
+- Multimo: MIT License
 - OASIS: Apache 2.0 License
