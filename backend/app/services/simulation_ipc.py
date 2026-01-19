@@ -225,7 +225,7 @@ class SimulationIPCClient:
         self,
         interviews: List[Dict[str, Any]],
         platform: str = None,
-        timeout: float = 120.0
+        timeout: float = 300.0
     ) -> IPCResponse:
         """
         发送批量采访命令
@@ -236,7 +236,7 @@ class SimulationIPCClient:
                 - "twitter": 默认只采访Twitter平台
                 - "reddit": 默认只采访Reddit平台
                 - None: 双平台模拟时每个Agent同时采访两个平台
-            timeout: 超时时间
+            timeout: 超时时间（默认300秒）
             
         Returns:
             IPCResponse，result字段包含所有采访结果

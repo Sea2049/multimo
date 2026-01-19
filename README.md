@@ -16,7 +16,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/blob/main/LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/MiroFish)
-[![Version](https://img.shields.io/badge/version-v0.1.0-green.svg?style=flat-square)](https://github.com/666ghj/MiroFish)
+[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg?style=flat-square)](https://github.com/666ghj/MiroFish)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -144,6 +144,71 @@ npm run backend   # 仅启动后端
 npm run frontend  # 仅启动前端
 ```
 
+## 📁 项目结构
+
+```
+MiroFish/
+├── backend/                 # 后端 Python 应用
+│   ├── app/                 # 应用核心代码
+│   │   ├── api/            # API 路由层
+│   │   ├── models/         # 数据模型层
+│   │   ├── services/       # 业务逻辑层
+│   │   └── utils/          # 工具函数层
+│   ├── scripts/            # 脚本目录
+│   ├── uploads/            # 上传文件目录
+│   └── logs/               # 日志目录
+├── frontend/                # 前端 Vue.js 应用
+│   ├── src/
+│   │   ├── api/            # API 客户端
+│   │   ├── components/     # Vue 组件
+│   │   ├── views/          # 页面视图
+│   │   └── router/         # 路由配置
+│   └── public/             # 公共静态资源
+├── static/                  # 静态资源（图片等）
+├── FRAMEWORK.md             # 框架架构文档
+├── CODE_DIRECTORY.md        # 代码目录文档
+├── README.md                # 中文说明文档（本文件）
+└── README-EN.md             # 英文说明文档
+```
+
+详细的目录结构和文件说明请参考：
+- [框架架构文档](./FRAMEWORK.md)
+- [代码目录文档](./CODE_DIRECTORY.md)
+
+## 🛠️ 技术栈
+
+### 后端技术
+- **Python 3.11-3.12** - 编程语言
+- **Flask 3.0+** - Web 框架
+- **OpenAI SDK** - LLM 交互
+- **Zep Cloud 3.13.0** - 长期记忆服务
+- **CAMEL-OASIS 0.2.5** - 社交模拟引擎
+- **PyMuPDF** - PDF 解析
+
+### 前端技术
+- **Vue.js 3** - 前端框架
+- **Vue Router** - 路由管理
+- **Axios** - HTTP 客户端
+- **D3.js** - 图谱可视化
+- **Vite** - 构建工具
+
+## 📖 文档
+
+- [框架架构文档](./FRAMEWORK.md) - 详细的系统架构和技术设计
+- [代码目录文档](./CODE_DIRECTORY.md) - 完整的代码目录结构和文件说明
+- [API 文档](./FRAMEWORK.md#6-api-端点) - REST API 端点说明
+- [配置说明](./FRAMEWORK.md#5-配置管理) - 环境变量和配置选项
+
+## 🤝 贡献指南
+
+欢迎贡献代码、报告问题或提出新功能建议！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
 ## 📬 更多交流
 
 <div align="center">
@@ -159,6 +224,10 @@ MiroFish团队长期招募全职/实习，如果你对多Agent应用感兴趣，
 **MiroFish 得到了盛大集团的战略支持和孵化！**
 
 MiroFish 的仿真引擎由 **[OASIS](https://github.com/camel-ai/oasis)** 驱动，我们衷心感谢 CAMEL-AI 团队的开源贡献！
+
+## 📄 许可证
+
+本项目采用 [AGPL-3.0](LICENSE) 许可证。
 
 ## 📈 项目统计
 

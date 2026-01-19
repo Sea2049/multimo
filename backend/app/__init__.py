@@ -39,7 +39,11 @@ def create_app(config_class=Config):
         logger.info("MiroFish Backend 启动中...")
         logger.info("=" * 50)
     
-    # 启用CORS
+    # ========================
+    # 安全性检查与中间件
+    # ========================
+    # 启用CORS (跨域资源共享)
+    # 注意：生产环境中建议将 origins 设置为具体的前端域名，避免 CSRF 风险
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
@@ -68,7 +72,8 @@ def create_app(config_class=Config):
     app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
     app.register_blueprint(report_bp, url_prefix='/api/report')
     
-    # 健康检查
+    # 健康检查端点
+    # 用于监控服务存活状态
     @app.route('/health')
     def health():
         return {'status': 'ok', 'service': 'MiroFish Backend'}

@@ -1351,7 +1351,7 @@ class ZepToolsService:
                 simulation_id=simulation_id,
                 interviews=interviews_request,
                 platform=None,  # 不指定platform，双平台采访
-                timeout=180.0   # 双平台需要更长超时
+                timeout=300.0   # 增加超时时间到5分钟，因为双平台+LLM调用较慢
             )
             
             logger.info(f"采访API返回: {api_result.get('interviews_count', 0)} 个结果, success={api_result.get('success')}")

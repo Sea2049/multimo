@@ -1489,7 +1489,7 @@ class SimulationRunner:
         simulation_id: str,
         interviews: List[Dict[str, Any]],
         platform: str = None,
-        timeout: float = 120.0
+        timeout: float = 300.0
     ) -> Dict[str, Any]:
         """
         批量采访多个Agent
@@ -1501,7 +1501,7 @@ class SimulationRunner:
                 - "twitter": 默认只采访Twitter平台
                 - "reddit": 默认只采访Reddit平台
                 - None: 双平台模拟时每个Agent同时采访两个平台
-            timeout: 超时时间（秒）
+            timeout: 超时时间（秒，默认300秒）
 
         Returns:
             批量采访结果字典

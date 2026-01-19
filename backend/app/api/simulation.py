@@ -1694,9 +1694,43 @@ def stop_simulation():
             "traceback": traceback.format_exc()
         }), 500
 
+from ..services.export_service import ExportService
 
-# ============== 实时状态监控接口 ==============
-
+@simulation_bp.route('/<simulation_id>/export', methods=['GET'])
+def export_simulation_data(simulation_id: str):
+    """
+    导出模拟完整数据
+    
+    打包内容：
+    - 项目数据 (project.json, extracted_text.txt)
+    - 模拟数据 (state.json, config, profiles, logs, actions, dbs)
+    - 报告数据 (full_report.md, outline, meta)
+    
+    返回：
+    - zip文件下载
+    """
+    try:
+        zip_path = ExportService.export_simulation_data(simulation_id)
+        
+        if not zip_path or not os.path.exists(zip_path):
+            return jsonify({
+                "success": False,
+                "error": "导出失败或数据不存在"
+            }), 500
+            
+        return send_file(
+            zip_path,
+            as_attachment=True,
+            download_name=f"mirofish_export_{simulation_id}.zip"
+        )
+        
+    except Exception as e:
+        logger.error(f"导出数据失败: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
 @simulation_bp.route('/<simulation_id>/run-status', methods=['GET'])
 def get_run_status(simulation_id: str):
     """

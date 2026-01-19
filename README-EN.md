@@ -144,6 +144,71 @@ npm run backend   # Start backend only
 npm run frontend  # Start frontend only
 ```
 
+## 📁 Project Structure
+
+```
+MiroFish/
+├── backend/                 # Backend Python application
+│   ├── app/                 # Core application code
+│   │   ├── api/            # API route layer
+│   │   ├── models/         # Data model layer
+│   │   ├── services/       # Business logic layer
+│   │   └── utils/          # Utility functions layer
+│   ├── scripts/            # Scripts directory
+│   ├── uploads/            # Upload files directory
+│   └── logs/               # Logs directory
+├── frontend/                # Frontend Vue.js application
+│   ├── src/
+│   │   ├── api/            # API clients
+│   │   ├── components/     # Vue components
+│   │   ├── views/          # Page views
+│   │   └── router/         # Router configuration
+│   └── public/             # Public static resources
+├── static/                  # Static resources (images, etc.)
+├── FRAMEWORK.md             # Framework architecture documentation
+├── CODE_DIRECTORY.md        # Code directory documentation
+├── README.md                # Chinese documentation
+└── README-EN.md             # English documentation (this file)
+```
+
+For detailed directory structure and file descriptions, please refer to:
+- [Framework Architecture Documentation](./FRAMEWORK.md)
+- [Code Directory Documentation](./CODE_DIRECTORY.md)
+
+## 🛠️ Tech Stack
+
+### Backend Technologies
+- **Python 3.11-3.12** - Programming language
+- **Flask 3.0+** - Web framework
+- **OpenAI SDK** - LLM interaction
+- **Zep Cloud 3.13.0** - Long-term memory service
+- **CAMEL-OASIS 0.2.5** - Social simulation engine
+- **PyMuPDF** - PDF parsing
+
+### Frontend Technologies
+- **Vue.js 3** - Frontend framework
+- **Vue Router** - Route management
+- **Axios** - HTTP client
+- **D3.js** - Graph visualization
+- **Vite** - Build tool
+
+## 📖 Documentation
+
+- [Framework Architecture Documentation](./FRAMEWORK.md) - Detailed system architecture and technical design
+- [Code Directory Documentation](./CODE_DIRECTORY.md) - Complete code directory structure and file descriptions
+- [API Documentation](./FRAMEWORK.md#6-api-端点) - REST API endpoint descriptions
+- [Configuration Documentation](./FRAMEWORK.md#5-配置管理) - Environment variables and configuration options
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to submit pull requests, report issues, or suggest new features!
+
+1. Fork this repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
 ## 📬 Join the Conversation
 
 <div align="center">
@@ -159,6 +224,10 @@ The MiroFish team is recruiting full-time/internship positions. If you're intere
 **MiroFish has received strategic support and incubation from Shanda Group!**
 
 MiroFish's simulation engine is powered by **[OASIS (Open Agent Social Interaction Simulations)](https://github.com/camel-ai/oasis)**, We sincerely thank the CAMEL-AI team for their open-source contributions!
+
+## 📄 License
+
+This project is licensed under the [AGPL-3.0](LICENSE) License.
 
 ## 📈 Project Statistics
 

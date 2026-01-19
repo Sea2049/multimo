@@ -26,6 +26,14 @@
           <span class="step-name">报告生成</span>
         </div>
         <div class="step-divider"></div>
+        <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Export All Data
+        </button>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
           {{ statusText }}
@@ -67,7 +75,7 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData } from '../api/graph'
-import { getSimulation } from '../api/simulation'
+import { getSimulation, exportSimulationData } from '../api/simulation'
 import { getReport } from '../api/report'
 
 const route = useRoute()
@@ -128,6 +136,12 @@ const updateStatus = (status) => {
 }
 
 // --- Layout Methods ---
+const handleFullExport = () => {
+  if (!simulationId.value) return
+  const url = exportSimulationData(simulationId.value)
+  window.open(url, '_blank')
+}
+
 const toggleMaximize = (target) => {
   if (viewMode.value === target) {
     viewMode.value = 'split'
@@ -273,6 +287,27 @@ onMounted(() => {
   background: #FFF;
   color: #000;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #000;
+  color: #FFF;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 12px;
+}
+
+.export-btn:hover {
+  background: #333;
+  transform: translateY(-1px);
 }
 
 .header-right {
