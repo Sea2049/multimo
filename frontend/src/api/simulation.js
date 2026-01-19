@@ -49,6 +49,14 @@ export const getRunStatus = (simulationId) => {
 }
 
 /**
+ * 获取运行状态详情（包含更多详细信息）
+ * @param {string} simulationId
+ */
+export const getRunStatusDetail = (simulationId) => {
+  return requestWithRetry(() => service.get(`/api/simulation/${simulationId}/run-status/detail`), 3, 1000)
+}
+
+/**
  * 获取模拟信息
  * @param {string} simulationId
  */
@@ -62,6 +70,56 @@ export const getSimulation = (simulationId) => {
  */
 export const getSimulationConfig = (simulationId) => {
   return requestWithRetry(() => service.get(`/api/simulation/${simulationId}/config`), 3, 1000)
+}
+
+/**
+ * 获取实时模拟配置状态（用于轮询配置生成进度）
+ * @param {string} simulationId
+ */
+export const getSimulationConfigRealtime = (simulationId) => {
+  return requestWithRetry(() => service.get(`/api/simulation/${simulationId}/config/realtime`), 3, 1000)
+}
+
+/**
+ * 获取实时人设生成进度
+ * @param {string} simulationId
+ * @param {string} platform - 'twitter' 或 'reddit'
+ */
+export const getSimulationProfilesRealtime = (simulationId, platform) => {
+  return requestWithRetry(() => service.get(`/api/simulation/${simulationId}/profiles/realtime`, {
+    params: { platform }
+  }), 3, 1000)
+}
+
+/**
+ * 批量采访多个智能体
+ * @param {string} simulationId
+ * @param {Array} interviews - 采访列表 [{ agent_id, platform, prompt }]
+ */
+export const interviewAgents = (simulationId, interviews) => {
+  return requestWithRetry(() => service.post(`/api/simulation/${simulationId}/interview/batch`, {
+    interviews
+  }), 3, 1000)
+}
+
+/**
+ * 获取环境状态
+ * @param {string} simulationId
+ */
+export const getEnvStatus = (simulationId) => {
+  return requestWithRetry(() => service.post('/api/simulation/env-status', {
+    simulation_id: simulationId
+  }), 3, 1000)
+}
+
+/**
+ * 关闭模拟环境
+ * @param {string} simulationId
+ */
+export const closeSimulationEnv = (simulationId) => {
+  return requestWithRetry(() => service.post('/api/simulation/close-env', {
+    simulation_id: simulationId
+  }), 3, 1000)
 }
 
 /**

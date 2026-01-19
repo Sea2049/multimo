@@ -1,238 +1,335 @@
-"""
-API调用重试机制
-用于处理LLM等外部API调用的重试逻辑
-"""
+# 重试机制模块
 
 import time
-import random
 import functools
-from typing import Callable, Any, Optional, Type, Tuple
-from ..utils.logger import get_logger
+from typing import Callable, Type, Tuple, Any, Optional
+from app.utils.logger import get_logger
 
-logger = get_logger('mirofish.retry')
+logger = get_logger(__name__)
 
 
-def retry_with_backoff(
-    max_retries: int = 3,
-    initial_delay: float = 1.0,
-    max_delay: float = 30.0,
-    backoff_factor: float = 2.0,
-    jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    on_retry: Optional[Callable[[Exception, int], None]] = None
-):
-    """
-    带指数退避的重试装饰器
+def retry_with_backoff(max_retries: int = 3, 
+                      backoff_factor: float = 2.0,
+                      max_wait: float = 60.0,
+                      exceptions: Tuple[Type[Exception], ...] = Exception,
+                      on_retry: Optional[Callable[[Exception, int], None]] = None):
+    """带指数退避的重试装饰器
     
     Args:
         max_retries: 最大重试次数
-        initial_delay: 初始延迟（秒）
-        max_delay: 最大延迟（秒）
-        backoff_factor: 退避因子
-        jitter: 是否添加随机抖动
-        exceptions: 需要重试的异常类型
-        on_retry: 重试时的回调函数 (exception, retry_count)
-    
-    Usage:
-        @retry_with_backoff(max_retries=3)
-        def call_llm_api():
-            ...
+        backoff_factor: 退避因子（每次重试的等待时间乘以该因子）
+        max_wait: 最大等待时间（秒）
+        exceptions: 需要重试的异常类型元组
+        on_retry: 重试时的回调函数，接收（异常，重试次数）
+        
+    Returns:
+        装饰器函数
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
-            last_exception = None
-            delay = initial_delay
+            retries = 0
+            wait_time = 1.0  # 初始等待时间
             
-            for attempt in range(max_retries + 1):
+            while retries <= max_retries:
                 try:
                     return func(*args, **kwargs)
-                    
                 except exceptions as e:
-                    last_exception = e
+                    retries += 1
                     
-                    if attempt == max_retries:
-                        logger.error(f"函数 {func.__name__} 在 {max_retries} 次重试后仍失败: {str(e)}")
+                    if retries > max_retries:
+                        logger.error(f"函数 {func.__name__} 重试 {max_retries} 次后仍然失败")
                         raise
                     
-                    # 计算延迟
-                    current_delay = min(delay, max_delay)
-                    if jitter:
-                        current_delay = current_delay * (0.5 + random.random())
+                    # 计算等待时间（带上限）
+                    wait_time = min(wait_time * backoff_factor, max_wait)
                     
                     logger.warning(
-                        f"函数 {func.__name__} 第 {attempt + 1} 次尝试失败: {str(e)}, "
-                        f"{current_delay:.1f}秒后重试..."
+                        f"函数 {func.__name__} 执行失败（第 {retries} 次重试），"
+                        f"{wait_time:.2f}秒后重试。错误: {e}"
                     )
                     
+                    # 调用回调函数
                     if on_retry:
-                        on_retry(e, attempt + 1)
+                        on_retry(e, retries)
                     
-                    time.sleep(current_delay)
-                    delay *= backoff_factor
+                    # 等待
+                    time.sleep(wait_time)
             
-            raise last_exception
+            # 理论上不会执行到这里
+            raise RuntimeError("重试逻辑错误")
         
         return wrapper
     return decorator
 
 
-def retry_with_backoff_async(
-    max_retries: int = 3,
-    initial_delay: float = 1.0,
-    max_delay: float = 30.0,
-    backoff_factor: float = 2.0,
-    jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    on_retry: Optional[Callable[[Exception, int], None]] = None
-):
-    """
-    异步版本的重试装饰器
-    """
-    import asyncio
+def retry_on_condition(max_retries: int = 3,
+                      check_condition: Callable[[Any], bool] = lambda x: x is None,
+                      exceptions: Tuple[Type[Exception], ...] = Exception,
+                      on_retry: Optional[Callable[[Any, int], None]] = None):
+    """基于返回条件的重试装饰器
     
+    Args:
+        max_retries: 最大重试次数
+        check_condition: 检查返回值的条件函数，返回 True 则重试
+        exceptions: 需要捕获的异常类型
+        on_retry: 重试时的回调函数，接收（返回值，重试次数）
+        
+    Returns:
+        装饰器函数
+    """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> Any:
-            last_exception = None
-            delay = initial_delay
-            
+        def wrapper(*args, **kwargs) -> Any:
             for attempt in range(max_retries + 1):
                 try:
-                    return await func(*args, **kwargs)
+                    result = func(*args, **kwargs)
+                    
+                    # 检查条件
+                    if check_condition(result):
+                        if attempt < max_retries:
+                            logger.warning(
+                                f"函数 {func.__name__} 返回值不符合条件（第 {attempt + 1} 次尝试），"
+                                f"将进行第 {attempt + 2} 次重试"
+                            )
+                            
+                            if on_retry:
+                                on_retry(result, attempt + 1)
+                            
+                            time.sleep(1.0)
+                            continue
+                        else:
+                            logger.error(f"函数 {func.__name__} 重试 {max_retries} 次后仍不符合条件")
+                    
+                    return result
                     
                 except exceptions as e:
-                    last_exception = e
-                    
-                    if attempt == max_retries:
-                        logger.error(f"异步函数 {func.__name__} 在 {max_retries} 次重试后仍失败: {str(e)}")
+                    if attempt < max_retries:
+                        logger.warning(
+                            f"函数 {func.__name__} 执行失败（第 {attempt + 1} 次尝试），"
+                            f"将进行第 {attempt + 2} 次重试。错误: {e}"
+                        )
+                        
+                        if on_retry:
+                            on_retry(e, attempt + 1)
+                        
+                        time.sleep(1.0)
+                        continue
+                    else:
+                        logger.error(f"函数 {func.__name__} 重试 {max_retries} 次后仍然失败")
                         raise
-                    
-                    current_delay = min(delay, max_delay)
-                    if jitter:
-                        current_delay = current_delay * (0.5 + random.random())
-                    
-                    logger.warning(
-                        f"异步函数 {func.__name__} 第 {attempt + 1} 次尝试失败: {str(e)}, "
-                        f"{current_delay:.1f}秒后重试..."
-                    )
-                    
-                    if on_retry:
-                        on_retry(e, attempt + 1)
-                    
-                    await asyncio.sleep(current_delay)
-                    delay *= backoff_factor
             
-            raise last_exception
+            # 理论上不会执行到这里
+            raise RuntimeError("重试逻辑错误")
         
         return wrapper
     return decorator
 
 
-class RetryableAPIClient:
-    """
-    可重试的API客户端封装
-    """
+class RetryPolicy:
+    """重试策略类"""
     
-    def __init__(
-        self,
-        max_retries: int = 3,
-        initial_delay: float = 1.0,
-        max_delay: float = 30.0,
-        backoff_factor: float = 2.0
-    ):
+    def __init__(self, max_retries: int = 3,
+                 backoff_factor: float = 2.0,
+                 max_wait: float = 60.0,
+                 initial_wait: float = 1.0):
+        """初始化重试策略
+        
+        Args:
+            max_retries: 最大重试次数
+            backoff_factor: 退避因子
+            max_wait: 最大等待时间
+            initial_wait: 初始等待时间
+        """
         self.max_retries = max_retries
-        self.initial_delay = initial_delay
-        self.max_delay = max_delay
         self.backoff_factor = backoff_factor
+        self.max_wait = max_wait
+        self.initial_wait = initial_wait
+        self.retry_count = 0
     
-    def call_with_retry(
-        self,
-        func: Callable,
-        *args,
-        exceptions: Tuple[Type[Exception], ...] = (Exception,),
-        **kwargs
-    ) -> Any:
-        """
-        执行函数调用并在失败时重试
-        
-        Args:
-            func: 要调用的函数
-            *args: 函数参数
-            exceptions: 需要重试的异常类型
-            **kwargs: 函数关键字参数
-            
-        Returns:
-            函数返回值
-        """
-        last_exception = None
-        delay = self.initial_delay
-        
-        for attempt in range(self.max_retries + 1):
-            try:
-                return func(*args, **kwargs)
-                
-            except exceptions as e:
-                last_exception = e
-                
-                if attempt == self.max_retries:
-                    logger.error(f"API调用在 {self.max_retries} 次重试后仍失败: {str(e)}")
-                    raise
-                
-                current_delay = min(delay, self.max_delay)
-                current_delay = current_delay * (0.5 + random.random())
-                
-                logger.warning(
-                    f"API调用第 {attempt + 1} 次尝试失败: {str(e)}, "
-                    f"{current_delay:.1f}秒后重试..."
-                )
-                
-                time.sleep(current_delay)
-                delay *= self.backoff_factor
-        
-        raise last_exception
+    def get_wait_time(self) -> float:
+        """获取当前等待时间"""
+        wait_time = self.initial_wait * (self.backoff_factor ** self.retry_count)
+        return min(wait_time, self.max_wait)
     
-    def call_batch_with_retry(
-        self,
-        items: list,
-        process_func: Callable,
-        exceptions: Tuple[Type[Exception], ...] = (Exception,),
-        continue_on_failure: bool = True
-    ) -> Tuple[list, list]:
-        """
-        批量调用并对每个失败项单独重试
+    def should_retry(self) -> bool:
+        """检查是否应该重试"""
+        return self.retry_count < self.max_retries
+    
+    def increment(self):
+        """增加重试计数"""
+        self.retry_count += 1
+    
+    def reset(self):
+        """重置重试计数"""
+        self.retry_count = 0
+
+
+def retry_with_policy(policy: RetryPolicy,
+                    exceptions: Tuple[Type[Exception], ...] = Exception):
+    """使用自定义重试策略的装饰器
+    
+    Args:
+        policy: 重试策略对象
+        exceptions: 需要重试的异常类型
         
-        Args:
-            items: 要处理的项目列表
-            process_func: 处理函数，接收单个item作为参数
-            exceptions: 需要重试的异常类型
-            continue_on_failure: 单项失败后是否继续处理其他项
+    Returns:
+        装饰器函数
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            policy.reset()
             
-        Returns:
-            (成功结果列表, 失败项列表)
-        """
-        results = []
-        failures = []
+            while policy.should_retry():
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    if not policy.should_retry():
+                        logger.error(
+                            f"函数 {func.__name__} 重试 {policy.retry_count} 次后仍然失败"
+                        )
+                        raise
+                    
+                    wait_time = policy.get_wait_time()
+                    policy.increment()
+                    
+                    logger.warning(
+                        f"函数 {func.__name__} 执行失败（第 {policy.retry_count} 次重试），"
+                        f"{wait_time:.2f}秒后重试。错误: {e}"
+                    )
+                    
+                    time.sleep(wait_time)
+            
+            # 理论上不会执行到这里
+            raise RuntimeError("重试逻辑错误")
         
-        for idx, item in enumerate(items):
+        return wrapper
+    return decorator
+
+
+def retry_circuit_breaker(max_failures: int = 5,
+                         recovery_timeout: float = 60.0):
+    """断路器模式的重试装饰器
+    
+    当连续失败次数达到阈值时，暂时停止重试
+    
+    Args:
+        max_failures: 最大失败次数（触发断路器）
+        recovery_timeout: 恢复超时时间（秒）
+        
+    Returns:
+        装饰器函数
+    """
+    def decorator(func: Callable) -> Callable:
+        # 断路器状态
+        failure_count = 0
+        last_failure_time = None
+        circuit_open = False
+        
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            nonlocal failure_count, last_failure_time, circuit_open
+            
+            # 检查断路器是否开启
+            if circuit_open:
+                # 检查是否可以尝试恢复
+                if last_failure_time and time.time() - last_failure_time > recovery_timeout:
+                    logger.info(f"断路器尝试恢复: {func.__name__}")
+                    circuit_open = False
+                    failure_count = 0
+                else:
+                    raise RuntimeError(
+                        f"断路器已开启，{func.__name__} 暂时不可用。"
+                        f"预计 {recovery_timeout:.0f} 秒后恢复"
+                    )
+            
             try:
-                result = self.call_with_retry(
-                    process_func,
-                    item,
-                    exceptions=exceptions
-                )
-                results.append(result)
+                result = func(*args, **kwargs)
+                
+                # 成功，重置断路器
+                if circuit_open or failure_count > 0:
+                    logger.info(f"函数 {func.__name__} 执行成功，重置断路器")
+                circuit_open = False
+                failure_count = 0
+                
+                return result
                 
             except Exception as e:
-                logger.error(f"处理第 {idx + 1} 项失败: {str(e)}")
-                failures.append({
-                    "index": idx,
-                    "item": item,
-                    "error": str(e)
-                })
+                failure_count += 1
+                last_failure_time = time.time()
                 
-                if not continue_on_failure:
-                    raise
+                logger.error(
+                    f"函数 {func.__name__} 执行失败（第 {failure_count} 次连续失败）。错误: {e}"
+                )
+                
+                # 检查是否需要开启断路器
+                if failure_count >= max_failures:
+                    circuit_open = True
+                    logger.warning(
+                        f"断路器已开启：{func.__name__}，连续失败 {failure_count} 次"
+                    )
+                
+                raise
         
-        return results, failures
+        return wrapper
+    return decorator
 
+
+class RetryExecutor:
+    """重试执行器，支持复杂重试逻辑"""
+    
+    def __init__(self, max_retries: int = 3, backoff_factor: float = 2.0):
+        """初始化重试执行器
+        
+        Args:
+            max_retries: 最大重试次数
+            backoff_factor: 退避因子
+        """
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
+        self.logger = get_logger(__name__)
+    
+    def execute(self, func: Callable, *args, 
+                exceptions: Tuple[Type[Exception], ...] = Exception,
+                on_retry: Optional[Callable] = None, **kwargs) -> Any:
+        """执行函数并重试
+        
+        Args:
+            func: 要执行的函数
+            *args: 位置参数
+            exceptions: 需要捕获的异常类型
+            on_retry: 重试时的回调函数
+            **kwargs: 关键字参数
+            
+        Returns:
+            函数执行结果
+        """
+        retries = 0
+        wait_time = 1.0
+        
+        while retries <= self.max_retries:
+            try:
+                return func(*args, **kwargs)
+            except exceptions as e:
+                retries += 1
+                
+                if retries > self.max_retries:
+                    self.logger.error(
+                        f"函数 {func.__name__} 重试 {self.max_retries} 次后仍然失败"
+                    )
+                    raise
+                
+                wait_time = min(wait_time * self.backoff_factor, 60.0)
+                
+                self.logger.warning(
+                    f"函数 {func.__name__} 执行失败（第 {retries} 次重试），"
+                    f"{wait_time:.2f}秒后重试。错误: {e}"
+                )
+                
+                if on_retry:
+                    on_retry(e, retries)
+                
+                time.sleep(wait_time)
+        
+        raise RuntimeError("重试逻辑错误")

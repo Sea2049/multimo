@@ -3,20 +3,25 @@
 ## 1. 项目根目录
 
 ```
-MiroFish/
+multimo/
 ├── .env                    # 环境变量配置文件（包含 API 密钥等敏感信息）
 ├── .env.example            # 环境变量示例文件（用于参考）
 ├── .gitignore              # Git 忽略文件配置
+├── ARCHITECTURE.md         # 架构文档
+├── API.md                  # API 文档
 ├── CODE_DIRECTORY.md       # 代码目录文档（本文件）
+├── DEVELOPMENT.md          # 开发指南
 ├── FRAMEWORK.md            # 框架架构文档
-├── LICENSE                 # AGPL-3.0 开源许可证
+├── LICENSE                 # MIT 开源许可证
+├── LICENSE-OASIS           # OASIS 框架 Apache 2.0 许可证
 ├── package.json            # 根目录依赖配置和 npm 脚本
 ├── package-lock.json       # 根目录依赖锁定文件
 ├── README.md               # 中文说明文档
 ├── README-EN.md            # 英文说明文档
+├── REFACTORING_PLAN.md     # 重构计划文档
+├── REFACTORING_STATUS.md   # 重构状态文档
+├── REPORT_MODULE_TEST_REPORT.md  # 报告模块测试报告
 ├── replication_log.md      # 项目复制日志
-├── body.json               # 测试数据文件
-├── test.txt                # 测试文件
 ├── static/                 # 静态资源目录
 │   └── image/              # 图片资源
 │       ├── Screenshot/     # 系统运行截图
@@ -43,58 +48,84 @@ MiroFish/
 backend/app/
 ├── __init__.py             # Flask 应用工厂
 ├── config.py               # 配置管理类（从 .env 加载配置）
+├── config_new.py           # 新配置管理类（重构版）
 ├── api/                    # API 路由层（处理 HTTP 请求）
 ├── models/                 # 数据模型层（定义数据结构）
 ├── services/               # 业务逻辑层（核心功能实现）
+├── modules/                # 功能模块层（重构后的模块化架构）
+├── storage/                # 存储层（数据存储接口和实现）
+├── core/                   # 核心接口层（基础类和接口定义）
 └── utils/                  # 工具函数层（通用工具）
 ```
 
 #### 2.1.1 应用入口
 
 **backend/app/__init__.py**
-- Flask 应用工厂函数
+- Flask 应用工厂函数 `create_app()`
 - 配置 CORS（跨域资源共享）
-- 注册 API 蓝图
+- 注册 API 蓝图和路由
 - 设置日志系统
-- 注册模拟进程清理函数
+- 注册错误处理器
+- 支持配置覆盖机制
 
 **backend/app/config.py**
-- 统一的配置管理类
+- 统一的配置管理类 `Config`
 - 从项目根目录的 .env 文件加载配置
 - 包含 Flask、LLM、Zep、OASIS 等配置
-- 配置验证功能
+- 配置验证功能 `validate()`
+- 禁用 JSON ASCII 转义，支持中文显示
+
+**backend/app/config_new.py**
+- 新版本配置管理类（基于 Pydantic）
+- 使用 Pydantic Settings 进行类型安全的配置
+- 支持配置验证和环境变量自动加载
+- 提供 `get_flask_config()` 方法
 
 #### 2.1.2 API 路由层 (backend/app/api/)
 
 ```
 backend/app/api/
-├── __init__.py             # API 蓝图初始化
-├── graph.py                # 图谱操作 API 端点
-├── simulation.py           # 模拟控制 API 端点
-└── report.py               # 报告生成 API 端点
+├── __init__.py             # API 蓝图初始化和路由注册
+├── v1/                     # API v1 版本
+│   ├── __init__.py
+│   ├── graph.py            # 图谱操作 API 端点
+│   ├── simulation.py       # 模拟控制 API 端点
+│   ├── report.py           # 报告生成 API 端点
+│   ├── interaction.py      # 交互对话 API 端点
+│   └── health.py           # 健康检查 API 端点
+├── graph.py                # 图谱操作 API（旧版，兼容性保留）
+├── simulation.py           # 模拟控制 API（旧版，兼容性保留）
+└── report.py               # 报告生成 API（旧版，兼容性保留）
 ```
 
-**backend/app/api/graph.py**
-- POST /api/graph/upload - 上传种子材料
-- POST /api/graph/extract - 提取实体和关系
-- GET /api/graph/entities - 获取实体列表
-- GET /api/graph/relationships - 获取关系列表
-- GET /api/graph/export - 导出图谱数据
+**backend/app/api/v1/graph.py**
+- POST /api/v1/graph/upload - 上传种子材料
+- POST /api/v1/graph/extract - 提取实体和关系
+- GET /api/v1/graph/entities - 获取实体列表
+- GET /api/v1/graph/relationships - 获取关系列表
+- GET /api/v1/graph/export - 导出图谱数据
 
-**backend/app/api/simulation.py**
-- POST /api/simulation/config - 生成模拟配置
-- POST /api/simulation/start - 启动模拟
-- GET /api/simulation/status - 获取模拟状态
-- POST /api/simulation/stop - 停止模拟
-- GET /api/simulation/logs - 获取模拟日志
-- POST /api/simulation/chat - 与智能体对话
-- GET /api/simulation/history - 获取历史模拟
+**backend/app/api/v1/simulation.py**
+- POST /api/v1/simulation/config - 生成模拟配置
+- POST /api/v1/simulation/start - 启动模拟
+- GET /api/v1/simulation/status - 获取模拟状态
+- POST /api/v1/simulation/stop - 停止模拟
+- GET /api/v1/simulation/logs - 获取模拟日志
+- POST /api/v1/simulation/chat - 与智能体对话
+- GET /api/v1/simulation/history - 获取历史模拟
 
-**backend/app/api/report.py**
-- POST /api/report/generate - 生成报告
-- GET /api/report/status - 获取报告生成状态
-- GET /api/report/content - 获取报告内容
-- GET /api/report/export - 导出报告
+**backend/app/api/v1/report.py**
+- POST /api/v1/report/generate - 生成报告
+- GET /api/v1/report/<simulation_id> - 获取报告（JSON格式）
+- GET /api/v1/report/<simulation_id>/markdown - 获取报告（Markdown格式）
+- GET /api/v1/report/list - 列出所有报告
+
+**backend/app/api/v1/interaction.py**
+- POST /api/v1/interaction/chat - 与 ReportAgent 对话
+- GET /api/v1/interaction/history - 获取对话历史
+
+**backend/app/api/v1/health.py**
+- GET /api/v1/health - 健康检查端点
 
 #### 2.1.3 数据模型层 (backend/app/models/)
 
@@ -107,13 +138,15 @@ backend/app/models/
 
 **backend/app/models/project.py**
 - 项目数据结构定义
-- 项目状态管理
+- 项目状态管理（created, processing, completed, failed）
 - 项目元数据管理
+- 项目 CRUD 操作
 
 **backend/app/models/task.py**
 - 任务数据结构定义
-- 任务状态管理
+- 任务状态管理（pending, running, completed, failed）
 - 任务进度跟踪
+- 任务依赖管理
 
 #### 2.1.4 业务逻辑层 (backend/app/services/)
 
@@ -137,107 +170,278 @@ backend/app/services/
 
 **backend/app/services/export_service.py**
 - 提供图谱数据导出功能
-- 支持多种导出格式
+- 支持多种导出格式（JSON, CSV）
 - 处理导出文件生成
+- 封装文件下载逻辑
 
 **backend/app/services/graph_builder.py**
 - 从文本中提取实体和关系
 - 构建知识图谱结构
 - 管理图谱数据存储
+- 支持图谱统计和分析
 
 **backend/app/services/oasis_profile_generator.py**
 - 为 OASIS 框架生成智能体人设
 - 基于图谱数据生成个性化配置
 - 支持 Twitter 和 Reddit 平台人设
+- 人设格式验证
 
 **backend/app/services/ontology_generator.py**
 - 生成本体结构
 - 定义领域知识模型
 - 支持知识推理
+- 本体验证
 
 **backend/app/services/report_agent.py**
 - 基于 LLM 的报告智能体
 - 分析模拟数据
 - 生成结构化预测报告
 - 提供丰富的工具集
+- 支持多轮反思和优化
 
 **backend/app/services/simulation_config_generator.py**
 - 生成模拟配置文件
 - 配置模拟环境参数
 - 管理智能体配置
+- 生成平台特定配置
 
 **backend/app/services/simulation_ipc.py**
 - 处理模拟进程间通信
 - 管理进程间数据传输
 - 实现进程同步机制
+- 支持异步消息传递
 
 **backend/app/services/simulation_manager.py**
 - 管理模拟的完整生命周期
 - 创建、启动、停止、查询模拟
 - 管理模拟状态和日志
 - 处理模拟错误和重试
+- 支持并发模拟管理
 
 **backend/app/services/simulation_runner.py**
 - 执行模拟任务
 - 集成 OASIS 框架
 - 支持 Twitter 和 Reddit 双平台并行模拟
 - 记录模拟日志
+- 处理模拟异常
 
 **backend/app/services/text_processor.py**
 - 处理上传的文件
 - 提取文本内容
 - 支持 PDF、Markdown、TXT 格式
 - 文本切块和预处理
+- 处理文件编码问题
 
 **backend/app/services/zep_entity_reader.py**
 - 从 Zep Cloud 读取实体数据
 - 管理实体关系
 - 支持实体查询
+- 实体数据格式转换
 
 **backend/app/services/zep_graph_memory_updater.py**
 - 更新 Zep 中的图谱记忆
 - 管理时序记忆
 - 同步图谱状态
+- 支持增量更新
 
 **backend/app/services/zep_tools.py**
 - Zep Cloud 工具函数
 - 封装 Zep API 调用
 - 处理 Zep 数据格式
+- Zep 会话管理
 
-#### 2.1.5 工具函数层 (backend/app/utils/)
+#### 2.1.5 功能模块层 (backend/app/modules/)
+
+```
+backend/app/modules/
+├── __init__.py             # 模块初始化
+├── graph/                  # 图谱构建模块
+│   ├── __init__.py
+│   ├── extractor.py        # 实体和关系提取器
+│   ├── builder.py          # 图谱构建器
+│   └── storage.py          # 图谱存储接口
+├── simulation/             # 模拟引擎模块
+│   ├── __init__.py
+│   └── platforms/          # 平台实现
+│       ├── __init__.py
+│       ├── twitter.py      # Twitter 平台
+│       └── reddit.py       # Reddit 平台
+├── report/                 # 报告生成模块
+│   ├── __init__.py
+│   ├── analyzer.py         # 数据分析器
+│   └── generator.py        # 报告生成器
+└── interaction/            # 交互模块
+    ├── __init__.py
+    └── chat.py             # 聊天接口
+```
+
+**backend/app/modules/graph/extractor.py**
+- `LLMEntityExtractor` 类：基于 LLM 的实体提取器
+- `LLMRelationExtractor` 类：基于 LLM 的关系提取器
+- 实现 `EntityExtractor` 和 `RelationExtractor` 接口
+- 支持实体类型识别和关系类型分类
+- 提供 JSON 格式的结构化输出
+
+**backend/app/modules/graph/builder.py**
+- `KnowledgeGraphBuilder` 类：知识图谱构建器
+- 实现 `GraphBuilder` 接口
+- 构建节点和边数据结构
+- 提供图谱统计信息
+- 支持图谱导出和可视化
+
+**backend/app/modules/graph/storage.py**
+- `ZepGraphStorage` 类：基于 Zep 的图谱存储
+- 实现 `GraphStorage` 接口
+- 管理图谱的 CRUD 操作
+- 支持图谱查询和搜索
+- 提供图谱版本管理
+
+**backend/app/modules/simulation/__init__.py**
+- 模拟引擎模块初始化
+- 集成 OASIS 框架进行社交模拟
+- OASIS 是 Apache 2.0 许可证的开源项目
+
+**backend/app/modules/simulation/platforms/twitter.py**
+- `TwitterPlatform` 类：Twitter 平台模拟
+- 实现 `Platform` 接口
+- 支持 post, reply, retweet, like 等动作
+- 模拟 Twitter 的 280 字符限制
+- 管理推文、回复、转发、点赞数据
+
+**backend/app/modules/simulation/platforms/reddit.py**
+- `RedditPlatform` 类：Reddit 平台模拟
+- 实现 `Platform` 接口
+- 支持 post, comment, like, dislike 等动作
+- 管理 subreddit、帖子、评论数据
+- 支持投票和排序机制
+
+**backend/app/modules/report/analyzer.py**
+- `DataAnalyzer` 类：模拟数据分析器
+- 分析模拟数据统计信息
+- 提取关键事件和趋势
+- 生成分析摘要
+- 支持多模拟比较
+
+**backend/app/modules/report/generator.py**
+- `ReportGenerator` 类：报告生成器
+- 基于 LLM 的报告生成
+- 实现结构化报告生成
+- 支持多章节报告生成
+- 转换为 Markdown 格式
+- 生成简化版报告
+
+**backend/app/modules/interaction/chat.py**
+- `ChatInterface` 类：聊天交互接口
+- 与模拟智能体对话
+- 与 ReportAgent 对话
+- 管理对话历史
+- 支持上下文注入
+
+#### 2.1.6 核心接口层 (backend/app/core/)
+
+```
+backend/app/core/
+├── __init__.py             # 核心模块初始化
+├── base.py                 # 基础类定义
+├── entities.py             # 实体定义
+└── interfaces.py           # 接口定义
+```
+
+**backend/app/core/interfaces.py**
+- 定义所有核心接口：
+  - `EntityExtractor`：实体提取器接口
+  - `RelationExtractor`：关系提取器接口
+  - `GraphBuilder`：图谱构建器接口
+  - `GraphStorage`：图谱存储接口
+  - `Agent`：智能体接口
+  - `SimulationEngine`：模拟引擎接口
+  - `Platform`：平台接口
+  - `MemoryStorage`：记忆存储接口
+  - `ReportGenerator`：报告生成器接口
+
+**backend/app/core/base.py**
+- 基础类定义
+- 提供通用功能和方法
+- 抽象类和混入类
+
+**backend/app/core/entities.py**
+- 实体数据结构定义
+- 实体类型枚举
+- 关系类型定义
+
+#### 2.1.7 存储层 (backend/app/storage/)
+
+```
+backend/app/storage/
+├── __init__.py             # 存储模块初始化
+├── memory.py               # 记忆存储
+└── database.py             # 数据库操作
+```
+
+**backend/app/storage/memory.py**
+- `MemoryStorage` 类：记忆存储实现
+- 实现 `MemoryStorage` 接口
+- 支持键值存储
+- 提供搜索功能
+
+**backend/app/storage/database.py**
+- 数据库操作封装
+- SQLite 数据库管理
+- 数据库连接池
+- 数据库迁移支持
+
+#### 2.1.8 工具函数层 (backend/app/utils/)
 
 ```
 backend/app/utils/
 ├── __init__.py
 ├── file_parser.py          # 文件解析工具（PDF、TXT、Markdown）
-├── llm_client.py            # LLM 客户端封装（支持 OpenAI SDK 格式）
+├── llm_client.py           # LLM 客户端封装（支持 OpenAI SDK 格式）
+├── llm.py                  # LLM 工具函数（重构版）
 ├── logger.py               # 日志配置（统一日志管理）
-└── retry.py                # 重试机制（处理 API 调用失败）
+├── retry.py                # 重试机制（处理 API 调用失败）
+└── validators.py           # 数据验证工具
 ```
 
 **backend/app/utils/file_parser.py**
-- 解析 PDF 文件
+- 解析 PDF 文件（使用 PyMuPDF）
 - 解析 TXT 文件
 - 解析 Markdown 文件
 - 处理文件编码问题
+- 支持多种编码格式
 
 **backend/app/utils/llm_client.py**
 - 封装 LLM API 调用
 - 支持 OpenAI SDK 格式的任意 LLM
 - 实现重试机制
 - 错误处理和日志记录
+- 流式响应支持
+
+**backend/app/utils/llm.py**
+- LLM 工具函数（重构版）
+- 统一的 LLM 客户端封装
+- 支持多种 LLM 提供商
+- 提示词模板管理
 
 **backend/app/utils/logger.py**
 - 配置日志系统
 - 设置日志格式和级别
 - 支持日志文件轮转
 - 区分不同模块的日志
+- 控制台和文件双输出
 
 **backend/app/utils/retry.py**
 - 实现重试机制
 - 支持指数退避
 - 处理临时性错误
 - 可配置重试次数和间隔
+- 重试装饰器
+
+**backend/app/utils/validators.py**
+- 数据验证工具
+- Pydantic 模型定义
+- API 参数验证
+- 数据格式检查
 
 ### 2.2 脚本目录 (backend/scripts/)
 
@@ -289,13 +493,16 @@ backend/uploads/
 │       ├── simulation_config.json  # 模拟配置
 │       ├── state.json    # 模拟状态
 │       ├── run_state.json # 运行状态
-│       ├── simulation.log # 模拟日志
+│       ├── env_status.json # 环境状态
 │       ├── twitter_profiles.csv   # Twitter 人设
 │       ├── reddit_profiles.json   # Reddit 人设
 │       ├── twitter/       # Twitter 平台数据
 │       │   └── actions.jsonl
-│       └── reddit_simulation.db  # Reddit 数据库
-└── reports/              # 报告文件存储
+│       ├── reddit/       # Reddit 平台数据
+│       │   └── actions.jsonl
+│       ├── reddit_simulation.db  # Reddit 数据库
+│       └── ipc_responses/ # IPC 响应记录
+└── reports/              # 报告文件存储（旧格式，兼容性保留）
     └── report_*/         # 报告目录（每个报告一个）
         ├── outline.json  # 报告大纲
         ├── meta.json     # 报告元数据
@@ -313,16 +520,35 @@ backend/logs/
 └── 2026-01-*.log         # 按日期分类的日志文件
 ```
 
-### 2.5 配置文件
+### 2.5 测试目录 (backend/tests/)
+
+```
+backend/tests/
+├── __init__.py
+└── test_graph_module.py   # 图谱模块测试
+```
+
+### 2.6 配置文件
 
 **backend/pyproject.toml**
 - Python 项目配置文件
 - 定义项目元数据和依赖
 - 使用 uv 包管理器
+- 配置项目脚本
 
 **backend/requirements.txt**
 - Python 依赖列表
 - 兼容传统 pip 安装方式
+- 核心依赖：
+  - flask>=3.0.0
+  - flask-cors>=6.0.0
+  - openai>=1.0.0
+  - zep-cloud==3.13.0
+  - camel-oasis==0.2.5
+  - camel-ai==0.2.78
+  - PyMuPDF>=1.24.0
+  - python-dotenv>=1.0.0
+  - pydantic>=2.0.0
 
 **backend/run.py**
 - 后端启动入口
@@ -381,7 +607,7 @@ frontend/src/api/
 
 **frontend/src/api/index.js**
 - 创建 Axios 实例
-- 配置基础 URL
+- 配置基础 URL（http://localhost:5001）
 - 配置请求/响应拦截器
 - 统一错误处理
 
@@ -552,6 +778,11 @@ frontend/src/views/
 **frontend/package.json**
 - 前端依赖配置
 - npm 脚本定义
+- 核心依赖：
+  - vue: ^3.5.24
+  - vue-router: ^4.6.3
+  - axios: ^1.13.2
+  - d3: ^7.9.0
 
 **frontend/package-lock.json**
 - 前端依赖锁定文件
@@ -560,21 +791,35 @@ frontend/src/views/
 - Vite 构建工具配置
 - 开发服务器配置
 - 插件配置
+- 路径别名配置
 
 ## 4. 依赖说明
 
 ### 4.1 后端依赖 (backend/requirements.txt)
 
 ```
+# 核心框架
 flask>=3.0.0              # Web 框架
 flask-cors>=6.0.0         # 跨域支持
-openai>=1.0.0             # LLM SDK
+
+# LLM 相关
+openai>=1.0.0             # LLM SDK（支持 OpenAI 格式的任意 LLM）
+
+# Zep Cloud
 zep-cloud==3.13.0         # 长期记忆服务
-camel-oasis==0.2.5        # 社交模拟引擎
+
+# OASIS 社交媒体模拟
+camel-oasis==0.2.5        # 社交模拟引擎（Apache 2.0）
 camel-ai==0.2.78          # CAMEL 框架
+
+# 文件处理
 PyMuPDF>=1.24.0           # PDF 解析
+
+# 工具库
 python-dotenv>=1.0.0      # 环境变量管理
 pydantic>=2.0.0           # 数据验证
+pydantic-settings>=2.0.0  # Pydantic 配置
+email-validator>=2.0.0     # 邮箱验证
 ```
 
 ### 4.2 前端依赖 (frontend/package.json)
@@ -582,14 +827,14 @@ pydantic>=2.0.0           # 数据验证
 ```json
 {
   "dependencies": {
-    "vue": "^3.x.x",              # Vue.js 框架
-    "vue-router": "^4.x.x",       # 路由管理
-    "axios": "^1.x.x",            # HTTP 客户端
-    "d3": "^7.x.x"                # 图谱可视化
+    "vue": "^3.5.24",              // Vue.js 框架
+    "vue-router": "^4.6.3",       // 路由管理
+    "axios": "^1.13.2",           // HTTP 客户端
+    "d3": "^7.9.0"                // 图谱可视化
   },
   "devDependencies": {
-    "vite": "^5.x.x",            // 构建工具
-    "@vitejs/plugin-vue": "^5.x.x"  // Vue 插件
+    "vite": "^7.2.4",            // 构建工具
+    "@vitejs/plugin-vue": "^6.0.1"  // Vue 插件
   }
 }
 ```
@@ -630,6 +875,7 @@ pydantic>=2.0.0           # 数据验证
 ### 6.1 分层架构
 - **API 层**：处理 HTTP 请求和响应
 - **服务层**：实现核心业务逻辑
+- **模块层**：功能模块化封装
 - **数据层**：定义数据模型和存储
 - **工具层**：提供通用工具函数
 
@@ -637,11 +883,13 @@ pydantic>=2.0.0           # 数据验证
 - 每个模块职责单一
 - 模块间通过接口通信
 - 便于独立测试和维护
+- 支持插件式扩展
 
 ### 6.3 代码复用
 - 提取通用功能到工具层
 - 封装常用操作到服务层
 - 使用继承和组合实现复用
+- 避免代码重复
 
 ## 7. 更新记录
 
@@ -655,8 +903,11 @@ pydantic>=2.0.0           # 数据验证
 - 添加完整的文档（FRAMEWORK.md、CODE_DIRECTORY.md、README）
 - 前后端分离架构（Vue.js + Flask）
 - 集成 Zep Cloud 长期记忆
-- 集成 OASIS 社交模拟引擎
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
 - 支持 OpenAI SDK 格式的任意 LLM
+- 重构架构，移除第三方受版权保护代码
+- 实现核心接口定义（core/）
+- 模块化设计（modules/）
 
 **主要特性：**
 - 上传种子材料并构建知识图谱
@@ -665,6 +916,8 @@ pydantic>=2.0.0           # 数据验证
 - 自动生成预测报告
 - 与模拟智能体深度交互
 - 完整的项目文档和代码注释
+- 重构后的清晰架构设计
+- 可扩展的模块化设计
 
 ### 2026-01-19
 - 初始版本创建

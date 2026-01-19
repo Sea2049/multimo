@@ -1,22 +1,22 @@
 <div align="center">
 
-<img src="./static/image/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="75%"/>
+<img src="./static/image/Multimo_logo_compressed.jpeg" alt="Multimo Logo" width="75%"/>
 
 简洁通用的群体智能引擎，预测万物
 </br>
 <em>A Simple and Universal Swarm Intelligence Engine, Predicting Anything</em>
 
-<a href="https://www.shanda.com/" target="_blank"><img src="./static/image/shanda_logo.png" alt="666ghj%2MiroFish | Shanda" height="40"/></a>
+<a href="https://www.shanda.com/" target="_blank"><img src="./static/image/shanda_logo.png" alt="Multimo | Shanda" height="40"/>
 
-[![GitHub Stars](https://img.shields.io/github/stars/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/stargazers)
-[![GitHub Watchers](https://img.shields.io/github/watchers/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/watchers)
-[![GitHub Forks](https://img.shields.io/github/forks/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/network)
-[![GitHub Issues](https://img.shields.io/github/issues/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/pulls)
+[![GitHub Stars](https://img.shields.io/github/stars/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/stargazers)
+[![GitHub Watchers](https://img.shields.io/github/watchers/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/watchers)
+[![GitHub Forks](https://img.shields.io/github/forks/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/network)
+[![GitHub Issues](https://img.shields.io/github/issues/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/pulls)
 
-[![GitHub License](https://img.shields.io/github/license/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/blob/main/LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/MiroFish)
-[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg?style=flat-square)](https://github.com/666ghj/MiroFish)
+[![GitHub License](https://img.shields.io/github/license/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/blob/main/LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/Multimo)
+[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -153,6 +153,9 @@ MiroFish/
 │   │   ├── api/            # API 路由层
 │   │   ├── models/         # 数据模型层
 │   │   ├── services/       # 业务逻辑层
+│   │   ├── modules/        # 功能模块层（重构）
+│   │   ├── core/           # 核心接口层
+│   │   ├── storage/        # 存储层
 │   │   └── utils/          # 工具函数层
 │   ├── scripts/            # 脚本目录
 │   ├── uploads/            # 上传文件目录
@@ -178,36 +181,91 @@ MiroFish/
 ## 🛠️ 技术栈
 
 ### 后端技术
-- **Python 3.11-3.12** - 编程语言
-- **Flask 3.0+** - Web 框架
-- **OpenAI SDK** - LLM 交互
-- **Zep Cloud 3.13.0** - 长期记忆服务
-- **CAMEL-OASIS 0.2.5** - 社交模拟引擎
-- **PyMuPDF** - PDF 解析
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| **Python** | 3.11-3.12 | 编程语言 |
+| **Flask** | 3.0+ | Web 框架 |
+| **OpenAI SDK** | 1.0+ | LLM 交互（支持任意兼容 OpenAI SDK 格式的 LLM） |
+| **Zep Cloud** | 3.13.0 | 长期记忆服务 |
+| **CAMEL-OASIS** | 0.2.5 | 社交模拟引擎（Apache 2.0 开源） |
+| **PyMuPDF** | 1.24.0+ | PDF 解析 |
+| **Pydantic** | 2.0+ | 数据验证 |
 
 ### 前端技术
-- **Vue.js 3** - 前端框架
-- **Vue Router** - 路由管理
-- **Axios** - HTTP 客户端
-- **D3.js** - 图谱可视化
-- **Vite** - 构建工具
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| **Vue.js** | 3.5.24 | 前端框架 |
+| **Vue Router** | 4.6.3 | 路由管理 |
+| **Axios** | 1.13.2 | HTTP 客户端 |
+| **D3.js** | 7.9.0 | 图谱可视化 |
+| **Vite** | 7.2.4 | 构建工具 |
 
 ## 📖 文档
 
-- [框架架构文档](./FRAMEWORK.md) - 详细的系统架构和技术设计
-- [代码目录文档](./CODE_DIRECTORY.md) - 完整的代码目录结构和文件说明
-- [API 文档](./FRAMEWORK.md#6-api-端点) - REST API 端点说明
-- [配置说明](./FRAMEWORK.md#5-配置管理) - 环境变量和配置选项
+- **[框架架构文档](./FRAMEWORK.md)** - 详细的系统架构、核心接口定义、工作流程
+- **[代码目录文档](./CODE_DIRECTORY.md)** - 完整的代码目录结构和文件功能说明
+- **[架构文档](./ARCHITECTURE.md)** - 系统架构设计和技术实现细节
+- **[API 文档](./API.md)** - REST API 端点说明和使用示例
+- **[开发指南](./DEVELOPMENT.md)** - 开发环境搭建和开发规范
+
+## 🏗️ 架构设计
+
+### 核心模块
+
+MiroFish 采用模块化架构设计，核心模块包括：
+
+#### 1. 图谱构建模块 ([`backend/app/modules/graph/`](backend/app/modules/graph/))
+- **实体提取器**：基于 LLM 的智能实体识别
+- **关系提取器**：提取实体间的关系
+- **图谱构建器**：构建知识图谱结构
+- **图谱存储**：集成 Zep Cloud 进行长期记忆存储
+
+#### 2. 模拟引擎模块 ([`backend/app/modules/simulation/`](backend/app/modules/simulation/))
+- **智能体实现**：基于 LLM 的智能体，具备独立人格和行为逻辑
+- **模拟引擎**：多智能体并行模拟引擎
+- **平台实现**：Twitter 和 Reddit 双平台模拟
+- **集成 OASIS**：使用 Apache 2.0 开源的 OASIS 框架
+
+#### 3. 报告生成模块 ([`backend/app/modules/report/`](backend/app/modules/report/))
+- **数据分析器**：模拟数据统计分析
+- **报告生成器**：基于 LLM 的结构化报告生成
+- **多格式导出**：支持 JSON、Markdown 格式
+
+#### 4. 交互模块 ([`backend/app/modules/interaction/`](backend/app/modules/interaction/))
+- **聊天接口**：与模拟智能体对话
+- **系统对话**：与 ReportAgent 深度交互
+- **动态变量注入**：实时修改模拟参数
+
+### 技术特性
+
+- ✅ **前后端分离**：Vue.js + Flask 架构
+- ✅ **模块化设计**：清晰的模块划分和接口定义
+- ✅ **可扩展性**：支持添加新的模拟平台和 LLM 服务
+- ✅ **长期记忆**：集成 Zep Cloud 实现智能体长期记忆
+- ✅ **开源框架**：集成 Apache 2.0 开源的 OASIS 框架
+- ✅ **多 LLM 支持**：支持 OpenAI SDK 格式的任意 LLM
+- ✅ **双平台并行**：Twitter 和 Reddit 同时模拟
 
 ## 🤝 贡献指南
 
 欢迎贡献代码、报告问题或提出新功能建议！
+
+### 贡献流程
 
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
 3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
+
+### 开发规范
+
+- 遵循项目的代码风格和命名规范
+- 为新功能添加必要的注释和文档
+- 确保所有测试通过
+- 提交前运行 lint 和 typecheck
 
 ## 📬 更多交流
 
@@ -225,16 +283,71 @@ MiroFish团队长期招募全职/实习，如果你对多Agent应用感兴趣，
 
 MiroFish 的仿真引擎由 **[OASIS](https://github.com/camel-ai/oasis)** 驱动，我们衷心感谢 CAMEL-AI 团队的开源贡献！
 
+感谢所有为 MiroFish 项目做出贡献的开发者和用户。
+
 ## 📄 许可证
 
-本项目采用 [AGPL-3.0](LICENSE) 许可证。
+本项目采用 [MIT License](LICENSE) 许可证。
+
+OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 
 ## 📈 项目统计
 
 <a href="https://www.star-history.com/#666ghj/MiroFish&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&theme=light&legend=top-left" />
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&legend=top-left" />
  </picture>
 </a>
+
+## 📝 更新日志
+
+### v1.0.0 (2026-01-20)
+
+**重大更新：**
+- 🎉 正式发布 v1.0 版本
+- 🏗️ 完整重构架构，移除第三方受版权保护代码
+- 🔧 实现核心接口定义（[`core/interfaces.py`](backend/app/core/interfaces.py)）
+- 📦 模块化设计（[`modules/`](backend/app/modules/)）
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 完整的项目文档和代码注释
+
+**技术栈：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+
+**主要特性：**
+- 上传种子材料并构建知识图谱
+- 自动生成智能体人设
+- 双平台并行模拟（Twitter + Reddit）
+- 自动生成预测报告
+- 与模拟智能体深度交互
+- 完整的项目文档和代码注释
+- 重构后的清晰架构设计
+- 可扩展的模块化设计
+
+## 🔗 相关链接
+
+- [GitHub 仓库](https://github.com/666ghj/MiroFish)
+- [盛大集团](https://www.shanda.com/)
+- [OASIS 框架](https://github.com/camel-ai/oasis)
+- [CAMEL-AI](https://github.com/camel-ai/camel)
+
+---
+
+<div align="center">
+
+**如果觉得 MiroFish 对你有帮助，请给我们一个 ⭐️ Star！**
+
+Made with ❤️ by MiroFish Team
+
+</div>

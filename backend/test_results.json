@@ -1,0 +1,10 @@
+{
+  "analyzer_test": "PASSED",
+  "generator_test": "PASSED (Logic only, LLM not called)",
+  "markdown_test": "PASSED",
+  "analysis_summary": {
+    "total_steps": 3,
+    "total_actions": 5,
+    "average_actions_per_step": 1.67
+  }
+}

@@ -1,85 +1,124 @@
+# Flask 应用工厂
 """
-MiroFish Backend - Flask应用工厂
+Multimo Flask 应用入口
+重构版本：移除对第三方受版权保护的依赖
 """
 
-import os
-import warnings
-
-# 抑制 multiprocessing resource_tracker 的警告（来自第三方库如 transformers）
-# 需要在所有其他导入之前设置
-warnings.filterwarnings("ignore", message=".*resource_tracker.*")
-
-from flask import Flask, request
+from flask import Flask, jsonify
 from flask_cors import CORS
+import os
 
-from .config import Config
-from .utils.logger import setup_logger, get_logger
+from app.config_new import get_config
+from app.api import init_api, register_routes
+from app.utils import get_logger
+
+logger = get_logger(__name__)
 
 
-def create_app(config_class=Config):
-    """Flask应用工厂函数"""
+def create_app(config_override: dict = None) -> Flask:
+    """创建 Flask 应用实例
+    
+    Args:
+        config_override: 配置覆盖字典
+        
+    Returns:
+        Flask 应用实例
+    """
+    # 获取配置
+    config = get_config()
+    
+    # 如果有配置覆盖，应用覆盖
+    if config_override:
+        for key, value in config_override.items():
+            setattr(config, key, value)
+    
+    # 验证配置
+    config_errors = config.validate_required_fields()
+    if config_errors:
+        logger.warning("配置验证警告:")
+        for error in config_errors:
+            logger.warning(f"  - {error}")
+    
+    # 创建 Flask 应用
     app = Flask(__name__)
-    app.config.from_object(config_class)
     
-    # 设置JSON编码：确保中文直接显示（而不是 \uXXXX 格式）
-    # Flask >= 2.3 使用 app.json.ensure_ascii，旧版本使用 JSON_AS_ASCII 配置
-    if hasattr(app, 'json') and hasattr(app.json, 'ensure_ascii'):
-        app.json.ensure_ascii = False
+    # 配置 Flask
+    flask_config = config.get_flask_config()
+    for key, value in flask_config.items():
+        app.config[key] = value
     
-    # 设置日志
-    logger = setup_logger('mirofish')
+    logger.info(f"Flask 应用初始化: DEBUG={config.DEBUG}")
     
-    # 只在 reloader 子进程中打印启动信息（避免 debug 模式下打印两次）
-    is_reloader_process = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
-    debug_mode = app.config.get('DEBUG', False)
-    should_log_startup = not debug_mode or is_reloader_process
+    # 初始化 API
+    init_api(app)
     
-    if should_log_startup:
-        logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
-        logger.info("=" * 50)
+    # 注册所有路由
+    register_routes()
     
-    # ========================
-    # 安全性检查与中间件
-    # ========================
-    # 启用CORS (跨域资源共享)
-    # 注意：生产环境中建议将 origins 设置为具体的前端域名，避免 CSRF 风险
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # 配置错误处理器
+    register_error_handlers(app)
     
-    # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
-    from .services.simulation_runner import SimulationRunner
-    SimulationRunner.register_cleanup()
-    if should_log_startup:
-        logger.info("已注册模拟进程清理函数")
-    
-    # 请求日志中间件
-    @app.before_request
-    def log_request():
-        logger = get_logger('mirofish.request')
-        logger.debug(f"请求: {request.method} {request.path}")
-        if request.content_type and 'json' in request.content_type:
-            logger.debug(f"请求体: {request.get_json(silent=True)}")
-    
-    @app.after_request
-    def log_response(response):
-        logger = get_logger('mirofish.request')
-        logger.debug(f"响应: {response.status_code}")
-        return response
-    
-    # 注册蓝图
-    from .api import graph_bp, simulation_bp, report_bp
-    app.register_blueprint(graph_bp, url_prefix='/api/graph')
-    app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
-    app.register_blueprint(report_bp, url_prefix='/api/report')
-    
-    # 健康检查端点
-    # 用于监控服务存活状态
-    @app.route('/health')
-    def health():
-        return {'status': 'ok', 'service': 'MiroFish Backend'}
-    
-    if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+    logger.info("Flask 应用初始化完成")
     
     return app
 
+
+def register_error_handlers(app: Flask):
+    """注册错误处理器
+    
+    Args:
+        app: Flask 应用实例
+    """
+    from app.api import get_error_response
+    
+    @app.errorhandler(400)
+    def bad_request(error):
+        """处理 400 错误"""
+        logger.warning(f"400 错误: {error}")
+        return jsonify(get_error_response("Bad Request", 400)), 400
+    
+    @app.errorhandler(404)
+    def not_found(error):
+        """处理 404 错误"""
+        logger.warning(f"404 错误: {error}")
+        return jsonify(get_error_response("Not Found", 404)), 404
+    
+    @app.errorhandler(405)
+    def method_not_allowed(error):
+        """处理 405 错误"""
+        logger.warning(f"405 错误: {error}")
+        return jsonify(get_error_response("Method Not Allowed", 405)), 405
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        """处理 500 错误"""
+        logger.error(f"500 错误: {error}")
+        return jsonify(get_error_response("Internal Server Error", 500)), 500
+    
+    @app.errorhandler(Exception)
+    def handle_exception(error):
+        """处理未捕获的异常"""
+        logger.error(f"未捕获的异常: {error}", exc_info=True)
+        return jsonify(get_error_response(str(error), 500)), 500
+
+
+def run_server():
+    """运行开发服务器
+    
+    主要用于开发环境，生产环境应使用 gunicorn/uwsgi 等 WSGI 服务器
+    """
+    app = create_app()
+    
+    config = get_config()
+    
+    logger.info(f"启动开发服务器: {config.HOST}:{config.PORT}")
+    
+    app.run(
+        host=config.HOST,
+        port=config.PORT,
+        debug=config.DEBUG
+    )
+
+
+if __name__ == "__main__":
+    run_server()
