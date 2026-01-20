@@ -1,4 +1,4 @@
-# MiroFish 代码目录文档
+# Multimo 代码目录文档
 
 ## 1. 项目根目录
 
@@ -31,8 +31,8 @@ multimo/
 │       │   ├── 运行截图4.png
 │       │   ├── 运行截图5.png
 │       │   └── 运行截图6.png
-│       ├── MiroFish_logo.jpeg          # MiroFish Logo
-│       ├── MiroFish_logo_compressed.jpeg  # 压缩版 Logo
+│       ├── Multimo_logo.jpeg          # Multimo Logo
+│       ├── Multimo_logo_compressed.jpeg  # 压缩版 Logo
 │       ├── shanda_logo.png              # 盛大集团 Logo
 │       ├── QQ群.png                     # QQ 交流群二维码
 │       └── 武大模拟演示封面.png         # 演示视频封面
@@ -99,11 +99,12 @@ backend/app/api/
 ```
 
 **backend/app/api/v1/graph.py**
-- POST /api/v1/graph/upload - 上传种子材料
-- POST /api/v1/graph/extract - 提取实体和关系
+- POST /api/v1/graph/extract - 从文本中提取实体和关系
+- POST /api/v1/graph/build - 构建知识图谱
+- GET /api/v1/graph/<graph_id> - 获取指定知识图谱
+- GET /api/v1/graph/<graph_id>/export - 导出知识图谱为 JSON 文件
 - GET /api/v1/graph/entities - 获取实体列表
 - GET /api/v1/graph/relationships - 获取关系列表
-- GET /api/v1/graph/export - 导出图谱数据
 
 **backend/app/api/v1/simulation.py**
 - POST /api/v1/simulation/config - 生成模拟配置
@@ -892,6 +893,47 @@ email-validator>=2.0.0     # 邮箱验证
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.2.0 (2026-01-20)
+
+**重大更新：**
+- 🎉 正式发布 v1.2.0 稳定版本
+- 🚀 完整实现图谱构建功能
+- 📊 完善模拟引擎和报告生成模块
+- 🔧 优化代码结构和性能
+- 📦 完整的测试覆盖
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 完善的测试用例
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 完整的单元测试覆盖
+
+### v1.0.1 (2026-01-20)
+
+**API 变更：**
+- 添加 POST /api/v1/graph/build 接口：支持构建知识图谱
+- 添加 GET /api/v1/graph/<graph_id> 接口：获取知识图谱数据
+- 添加 GET /api/v1/graph/<graph_id>/export 接口：导出知识图谱
+- 移除旧的接口（合并到统一流程）
+
+**代码改进：**
+- 优化图谱存储路径，支持模拟目录和独立图谱目录两种存储方式
+- 集成 SimulationManager 进行图谱文件管理和路径解析
+- 添加完整的错误处理和日志记录
+- 保持与现有 API 的一致性设计
 
 ### v1.0.0 (2026-01-20)
 - 正式发布 v1.0 版本

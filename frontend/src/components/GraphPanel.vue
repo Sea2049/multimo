@@ -4,6 +4,10 @@
       <span class="panel-title">Graph Relationship Visualization</span>
       <!-- 顶部工具栏 (Internal Top Right) -->
       <div class="header-tools">
+        <button class="tool-btn" @click="handleExportGraph" title="导出图谱数据">
+          <span class="icon-export">↓</span>
+          <span class="btn-text">Export</span>
+        </button>
         <button class="tool-btn" @click="$emit('refresh')" :disabled="loading" title="刷新图谱">
           <span class="icon-refresh" :class="{ 'spinning': loading }">↻</span>
           <span class="btn-text">Refresh</span>
@@ -255,6 +259,43 @@ const showEdgeLabels = ref(true) // 默认显示边标签
 const expandedSelfLoops = ref(new Set()) // 展开的自环项
 const showSimulationFinishedHint = ref(false) // 模拟结束后的提示
 const wasSimulating = ref(false) // 追踪之前是否在模拟中
+
+// 导出图谱
+const handleExportGraph = () => {
+  // 尝试从 graphData 中获取 ID，或者从 URL 参数/Props 中获取
+  // 这里我们假设 graphData 中没有 ID，需要父组件传递或者从当前上下文推断
+  // 简单起见，我们尝试使用 simulationId (如果存在) 或者 graphId
+  // 由于 GraphPanel 是通用组件，我们最好触发一个事件让父组件处理，或者直接构建 URL
+  
+  // 方案：直接构建 URL，假设 graphData 对应的 ID 可以从路由或 Props 获取
+  // 但 GraphPanel 的 props 只有 graphData。
+  // 我们检查 graphData 是否包含 id 信息
+  
+  // 如果 graphData 中没有 ID，我们无法直接构建 URL。
+  // 让我们修改一下策略：在 GraphPanel 中不直接处理下载，而是 emit 一个事件 'export'
+  // 或者，我们假设父组件会传递 graphId 作为 prop？目前没有。
+  
+  // 让我们看看父组件是如何使用 GraphPanel 的。
+  // SimulationRunView: <GraphPanel :graphData="graphData" ... />
+  // projectData.value.graph_id 是存在的。
+  
+  // 既然我们无法直接获取 ID，我们可以在这里抛出事件，让父组件处理下载逻辑。
+  // 或者，我们可以简单地将当前的 graphData 导出为 JSON 文件并在前端下载。
+  // 这样就不需要后端 API 了，而且导出的是当前视图的数据。
+  
+  if (!props.graphData) return
+  
+  const dataStr = JSON.stringify(props.graphData, null, 2)
+  const blob = new Blob([dataStr], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `knowledge_graph_${new Date().toISOString().slice(0,10)}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 // 关闭模拟结束提示
 const dismissFinishedHint = () => {

@@ -896,7 +896,7 @@ def get_simulation_history():
                     "total_rounds": 120,
                     "current_round": 120,
                     "report_id": "report_xxxx",
-                    "version": "v1.0.2"
+                    "version": "v1.2.0"
                 },
                 ...
             ],
@@ -956,7 +956,7 @@ def get_simulation_history():
             sim_dict["report_id"] = _get_report_id_for_simulation(sim.simulation_id)
             
             # 添加版本号
-            sim_dict["version"] = "v1.0.2"
+            sim_dict["version"] = "v1.2.0"
             
             # 格式化日期
             try:

@@ -6,6 +6,9 @@ from app.config_new import get_config
 
 # 创建蓝图
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
+simulation_bp = Blueprint("simulation", __name__, url_prefix="/api/simulation")
+graph_bp = Blueprint("graph", __name__, url_prefix="/api/graph")
+report_bp = Blueprint("report", __name__, url_prefix="/api/report")
 
 # 获取配置
 config = get_config()
@@ -23,6 +26,9 @@ def init_api(app):
     
     # 注册蓝图
     app.register_blueprint(api_v1_bp)
+    app.register_blueprint(simulation_bp)
+    app.register_blueprint(graph_bp)
+    app.register_blueprint(report_bp)
 
 
 def register_routes():
@@ -30,7 +36,13 @@ def register_routes():
     注意：实际的路由注册在各个路由文件中通过装饰器完成
     此函数用于确保所有路由模块被导入
     """
+    # v1 旧版路由
     from app.api.v1 import graph, simulation, report, health, interaction
+    
+    # 新版完整路由
+    from app.api import graph as graph_module
+    from app.api import simulation as simulation_module
+    from app.api import report as report_module
     
     # 路由模块导入后自动注册
 

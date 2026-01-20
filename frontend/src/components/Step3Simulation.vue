@@ -92,6 +92,19 @@
 
       <div class="action-controls">
         <button 
+          v-if="phase === 1"
+          class="action-btn stop"
+          :disabled="isStopping"
+          @click="handleStopSimulation"
+        >
+          <span v-if="isStopping" class="loading-spinner-small dark"></span>
+          <svg v-else class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
+          <span class="btn-text">{{ isStopping ? '停止中...' : '停止' }}</span>
+        </button>
+
+        <button 
           class="action-btn primary"
           :disabled="phase !== 2 || isGeneratingReport"
           @click="handleNextStep"
@@ -437,6 +450,10 @@ const doStartSimulation = async () => {
 // 停止模拟
 const handleStopSimulation = async () => {
   if (!props.simulationId) return
+
+  if (!confirm('确定要停止当前模拟吗？\n\n注意：停止后将无法恢复或继续运行，只能重新开始新的模拟。')) {
+    return
+  }
   
   isStopping.value = true
   addLog('正在停止模拟...')
@@ -723,6 +740,12 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.action-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 /* Platform Status Cards */
 .platform-status {
   display: flex;
@@ -882,6 +905,7 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .action-btn.primary {
@@ -891,6 +915,16 @@ onUnmounted(() => {
 
 .action-btn.primary:hover:not(:disabled) {
   background: #333;
+}
+
+.action-btn.danger {
+  background: #FFF;
+  color: #F44336;
+  border: 1px solid #F44336;
+}
+
+.action-btn.danger:hover:not(:disabled) {
+  background: #FFEBEE;
 }
 
 .action-btn:disabled {

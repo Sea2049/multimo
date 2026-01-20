@@ -288,6 +288,40 @@ def get_report_markdown(simulation_id: str):
         return jsonify(get_error_response(str(e), 500)), 500
 
 
+from flask import send_file
+
+@api_v1_bp.route("/report/<simulation_id>/download", methods=["GET"])
+def download_report(simulation_id: str):
+    """下载报告文件"""
+    try:
+        format_type = request.args.get("format", "markdown")  # markdown, json
+        logger.info(f"接收到下载报告请求: simulation_id={simulation_id}, format={format_type}")
+        
+        sim_manager = SimulationManager()
+        report_dir = os.path.join(sim_manager.SIMULATION_DATA_DIR, simulation_id, "report")
+        
+        if format_type == "json":
+            file_path = os.path.join(report_dir, "report.json")
+            mimetype = "application/json"
+            download_name = f"report_{simulation_id}.json"
+        else:
+            file_path = os.path.join(report_dir, "report.md")
+            mimetype = "text/markdown"
+            download_name = f"report_{simulation_id}.md"
+            
+        if not os.path.exists(file_path):
+            return jsonify(get_error_response("报告文件不存在，请先生成报告", 404)), 404
+            
+        return send_file(
+            file_path,
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=download_name
+        )
+        
+    except Exception as e:
+        logger.error(f"下载报告失败: {e}", exc_info=True)
+        return jsonify(get_error_response(str(e), 500)), 500
 @api_v1_bp.route("/report/list", methods=["GET"])
 def list_reports():
     """列出所有报告"""

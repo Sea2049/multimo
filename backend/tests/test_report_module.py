@@ -100,14 +100,14 @@ def test_data_analyzer():
     # 分析数据
     analysis = analyzer.analyze_simulation_data(test_simulation_data)
     
-    logger.info(f"基础统计: {json.dumps(analysis['basic_statistics'], ensure_ascii=False, indent=2)}")
-    logger.info(f"动作统计: {json.dumps(analysis['action_statistics'], ensure_ascii=False, indent=2)}")
-    logger.info(f"智能体统计: {json.dumps(analysis['agent_statistics'], ensure_ascii=False, indent=2)}")
-    logger.info(f"关键事件数量: {len(analysis['key_events'])}")
+    # logger.info(f"基础统计: {json.dumps(analysis['basic_statistics'], ensure_ascii=False, indent=2)}")
+    # logger.info(f"动作统计: {json.dumps(analysis['action_statistics'], ensure_ascii=False, indent=2)}")
+    # logger.info(f"智能体统计: {json.dumps(analysis['agent_statistics'], ensure_ascii=False, indent=2)}")
+    # logger.info(f"关键事件数量: {len(analysis['key_events'])}")
     
     # 生成摘要
     summary = analyzer.get_summary(analysis)
-    logger.info(f"\n分析摘要:\n{summary}")
+    # logger.info(f"\n分析摘要:\n{summary}")
     
     logger.info("\n✅ 数据分析器测试通过")
     return analysis
@@ -169,8 +169,8 @@ def test_report_generator():
     analyzer = DataAnalyzer()
     analysis = analyzer.analyze_simulation_data(test_simulation_data)
     
-    logger.info(f"分析结果: {json.dumps(analysis['basic_statistics'], ensure_ascii=False)}")
-    logger.info(f"分析摘要: {analyzer.get_summary(analysis)}")
+    # logger.info(f"分析结果: {json.dumps(analysis['basic_statistics'], ensure_ascii=False)}")
+    # logger.info(f"分析摘要: {analyzer.get_summary(analysis)}")
     
     logger.info("\n✅ 报告生成器逻辑测试通过（未调用 LLM）")
     
@@ -224,39 +224,8 @@ def test_to_markdown():
     # 转换为 Markdown
     markdown = generator.to_markdown(test_report)
     
-    logger.info("生成的 Markdown 内容:\n")
-    logger.info(markdown)
+    # logger.info("生成的 Markdown 内容:\n")
+    # logger.info(markdown)
     
     logger.info("\n✅ Markdown 转换测试通过")
     return markdown
-
-
-if __name__ == "__main__":
-    try:
-        # 测试数据分析器
-        analysis = test_data_analyzer()
-        
-        # 测试报告生成器逻辑
-        test_report_generator()
-        
-        # 测试 Markdown 转换
-        markdown = test_to_markdown()
-        
-        # 保存测试结果
-        test_results = {
-            "analyzer_test": "PASSED",
-            "generator_test": "PASSED (Logic only, LLM not called)",
-            "markdown_test": "PASSED",
-            "analysis_summary": analysis.get("basic_statistics", {})
-        }
-        
-        with open("test_results.json", "w", encoding="utf-8") as f:
-            json.dump(test_results, f, ensure_ascii=False, indent=2)
-        
-        logger.info("\n" + "=" * 50)
-        logger.info("所有测试完成！结果已保存到 test_results.json")
-        logger.info("=" * 50)
-        
-    except Exception as e:
-        logger.error(f"测试失败: {e}", exc_info=True)
-        sys.exit(1)

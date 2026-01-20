@@ -48,18 +48,26 @@ def get_simulation_status(simulation_id: str):
         return jsonify(get_error_response(str(e), 500)), 500
 
 
+from app.services.simulation_runner import SimulationRunner
+
 @api_v1_bp.route("/simulation/<simulation_id>/stop", methods=["POST"])
 def stop_simulation(simulation_id: str):
     """停止模拟"""
     try:
-        # TODO: 实现模拟停止逻辑（第二阶段）
         logger.info(f"接收到停止模拟请求: simulation_id={simulation_id}")
+        
+        # 调用 SimulationRunner 停止模拟
+        state = SimulationRunner.stop_simulation(simulation_id)
         
         return jsonify(get_response({
             "success": True,
-            "message": "模拟停止模块将在第二阶段实现"
+            "message": "模拟已停止",
+            "state": state.to_dict()
         })), 200
         
+    except ValueError as e:
+        logger.warning(f"停止模拟失败(ValueError): {e}")
+        return jsonify(get_error_response(str(e), 400)), 400
     except Exception as e:
         logger.error(f"停止模拟失败: {e}")
         return jsonify(get_error_response(str(e), 500)), 500

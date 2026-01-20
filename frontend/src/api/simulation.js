@@ -18,10 +18,10 @@ export const prepareSimulation = (data) => {
 
 /**
  * 获取准备状态
- * @param {string} taskId
+ * @param {Object} data - { task_id?, simulation_id? }
  */
-export const getPrepareStatus = (taskId) => {
-  return requestWithRetry(() => service.get(`/api/simulation/prepare/status/${taskId}`), 3, 1000)
+export const getPrepareStatus = (data) => {
+  return requestWithRetry(() => service.post('/api/simulation/prepare/status', data), 3, 1000)
 }
 
 /**

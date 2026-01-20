@@ -26,6 +26,14 @@
           <span class="step-name">报告生成</span>
         </div>
         <div class="step-divider"></div>
+        <button v-if="simulationId" class="export-btn secondary" @click="handleExportReport" title="导出报告Markdown">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Export Report
+        </button>
         <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -136,6 +144,13 @@ const updateStatus = (status) => {
 }
 
 // --- Layout Methods ---
+const handleExportReport = () => {
+  if (!simulationId.value) return
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
+  const url = `${baseUrl}/api/v1/report/${simulationId.value}/download?format=markdown`
+  window.open(url, '_blank')
+}
+
 const handleFullExport = () => {
   if (!simulationId.value) return
   const url = exportSimulationData(simulationId.value)
@@ -308,6 +323,17 @@ onMounted(() => {
 .export-btn:hover {
   background: #333;
   transform: translateY(-1px);
+}
+
+.export-btn.secondary {
+  background: #FFF;
+  color: #333;
+  border: 1px solid #E0E0E0;
+}
+
+.export-btn.secondary:hover {
+  background: #F5F5F5;
+  border-color: #CCC;
 }
 
 .header-right {

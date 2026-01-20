@@ -456,10 +456,18 @@ docker run -d -p 3000:3000 -p 5001:5001 \
 
 ### 10.3 社区资源
 
-- GitHub Issues: https://github.com/666ghj/MiroFish/issues
-- GitHub Discussions: https://github.com/666ghj/MiroFish/discussions
+- GitHub Issues: https://github.com/666ghj/Multimo/issues
+- GitHub Discussions: https://github.com/666ghj/Multimo/discussions
 
 ## 11. 更新日志
+
+### v1.2.0 (2026-01-20)
+- 🎉 正式发布 v1.2.0 稳定版本
+- 🚀 完整实现图谱构建功能
+- 📊 完善模拟引擎和报告生成模块
+- 🔧 优化代码结构和性能
+- 📦 完整的测试覆盖
+- 🐳 Docker 容器化部署支持
 
 ### v1.0.0 (2026-01-20)
 - 正式发布 v1.0 版本

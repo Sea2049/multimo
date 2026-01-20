@@ -16,7 +16,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/blob/main/LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/Multimo)
-[![Version](https://img.shields.io/badge/version-v1.0.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
+[![Version](https://img.shields.io/badge/version-v1.2.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -302,6 +302,46 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 </a>
 
 ## 📝 更新日志
+
+### v1.2.0 (2026-01-20)
+
+**重大更新：**
+- 🎉 正式发布 v1.2.0 稳定版本
+- 🚀 完整实现图谱构建功能
+- 📊 完善模拟引擎和报告生成模块
+- 🔧 优化代码结构和性能
+- 📦 完整的测试覆盖
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 完善的测试用例
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 完整的单元测试覆盖
+
+### v1.0.1 (2026-01-20)
+
+**功能更新：**
+- 图谱获取功能：添加 GET /api/v1/graph/<graph_id> 接口
+- 图谱导出功能：添加 GET /api/v1/graph/<graph_id>/export 接口
+- 图谱构建功能：添加 POST /api/v1/graph/build 接口
+- 集成 SimulationManager 进行图谱文件管理和路径解析
+
+**代码改进：**
+- 优化图谱存储路径，支持模拟目录和独立图谱目录两种存储方式
+- 添加完整的错误处理和日志记录
+- 保持与现有 API 的一致性设计
 
 ### v1.0.0 (2026-01-20)
 
