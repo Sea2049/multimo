@@ -265,12 +265,6 @@ Multimo 采用模块化架构设计，核心模块包括：
 - 确保所有测试通过
 - 提交前运行 lint 和 typecheck
 
-## 📬 更多交流
-
-<div align="center">
-<img src="./static/image/QQ群.png" alt="QQ交流群" width="60%"/>
-</div>
-
 &nbsp;
 
 ## 📄 致谢
