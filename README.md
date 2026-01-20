@@ -386,8 +386,8 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 
 <div align="center">
 
-**如果觉得 MiroFish 对你有帮助，请给我们一个 ⭐️ Star！**
+**如果觉得 Multimo 对你有帮助，请给我们一个 ⭐️ Star！**
 
-Made with ❤️ by MiroFish Team
+Made with ❤️ by Multimo Team
 
 </div>
