@@ -295,6 +295,65 @@
         </div>
       </div>
     </div>
+
+    <!-- 恢复对话框 -->
+    <div v-if="showResumeDialog" class="resume-dialog-overlay" @click.self="showResumeDialog = false">
+      <div class="resume-dialog">
+        <div class="resume-dialog-header">
+          <svg class="resume-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <h3>检测到未完成的模拟</h3>
+        </div>
+        
+        <div class="resume-dialog-content">
+          <div class="resume-info">
+            <div class="resume-info-item">
+              <span class="resume-label">已完成轮次</span>
+              <span class="resume-value">{{ resumableInfo?.current_round || 0 }} / {{ resumableInfo?.total_rounds || 0 }}</span>
+            </div>
+            <div class="resume-info-item">
+              <span class="resume-label">完成进度</span>
+              <span class="resume-value">{{ resumableInfo?.progress_percent || 0 }}%</span>
+            </div>
+            <div class="resume-info-item">
+              <span class="resume-label">Twitter 动作数</span>
+              <span class="resume-value">{{ resumableInfo?.twitter_actions || 0 }}</span>
+            </div>
+            <div class="resume-info-item">
+              <span class="resume-label">Reddit 动作数</span>
+              <span class="resume-value">{{ resumableInfo?.reddit_actions || 0 }}</span>
+            </div>
+          </div>
+          
+          <div class="resume-hint">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>您可以选择从上次中断处继续运行，或重新开始新的模拟</span>
+          </div>
+        </div>
+        
+        <div class="resume-dialog-actions">
+          <button class="resume-btn secondary" @click="handleRestartSimulation">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+            重新开始
+          </button>
+          <button class="resume-btn primary" @click="handleResumeSimulation">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            继续运行
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -305,7 +364,8 @@ import {
   startSimulation, 
   stopSimulation,
   getRunStatus, 
-  getRunStatusDetail
+  getRunStatusDetail,
+  checkResumable
 } from '../api/simulation'
 import { generateReport } from '../api/report'
 
@@ -335,6 +395,11 @@ const runStatus = ref({})
 const allActions = ref([]) // 所有动作（增量累积）
 const actionIds = ref(new Set()) // 用于去重的动作ID集合
 const scrollContainer = ref(null)
+
+// 恢复模式相关状态
+const resumableInfo = ref(null)
+const isCheckingResumable = ref(false)
+const showResumeDialog = ref(false)
 
 // Computed
 // 按时间顺序显示动作（最新的在最后面，即底部）
@@ -390,25 +455,36 @@ const resetAllState = () => {
 }
 
 // 启动模拟
-const doStartSimulation = async () => {
+const doStartSimulation = async (resume = false) => {
   if (!props.simulationId) {
     addLog('错误：缺少 simulationId')
     return
   }
   
-  // 先重置所有状态，确保不会受到上一次模拟的影响
-  resetAllState()
+  // 如果不是恢复模式，先重置所有状态
+  if (!resume) {
+    resetAllState()
+  }
   
   isStarting.value = true
   startError.value = null
-  addLog('正在启动双平台并行模拟...')
+  
+  if (resume) {
+    addLog('正在从上次中断处恢复模拟...')
+    addLog(`  ├─ 已完成轮次: ${resumableInfo.value?.current_round || 0}`)
+    addLog(`  └─ 总轮次: ${resumableInfo.value?.total_rounds || 0}`)
+  } else {
+    addLog('正在启动双平台并行模拟...')
+  }
+  
   emit('update-status', 'processing')
   
   try {
     const params = {
       simulation_id: props.simulationId,
       platform: 'parallel',
-      force: true,  // 强制重新开始
+      force: !resume,  // 恢复模式不使用强制
+      resume: resume,  // 传递恢复参数
       enable_graph_memory_update: true  // 开启动态图谱更新
     }
     
@@ -422,7 +498,9 @@ const doStartSimulation = async () => {
     const res = await startSimulation(params)
     
     if (res.success && res.data) {
-      if (res.data.force_restarted) {
+      if (res.data.resumed) {
+        addLog('✓ 模拟已从断点恢复')
+      } else if (res.data.force_restarted) {
         addLog('✓ 已清理旧的模拟日志，重新开始模拟')
       }
       addLog('✓ 模拟引擎启动成功')
@@ -451,7 +529,7 @@ const doStartSimulation = async () => {
 const handleStopSimulation = async () => {
   if (!props.simulationId) return
 
-  if (!confirm('确定要停止当前模拟吗？\n\n注意：停止后将无法恢复或继续运行，只能重新开始新的模拟。')) {
+  if (!confirm('确定要停止当前模拟吗？\n\n提示：停止后可以选择从断点继续运行，或重新开始新的模拟。')) {
     return
   }
   
@@ -474,6 +552,47 @@ const handleStopSimulation = async () => {
   } finally {
     isStopping.value = false
   }
+}
+
+// 检查是否可以恢复
+const checkResumableStatus = async () => {
+  if (!props.simulationId) return
+  
+  isCheckingResumable.value = true
+  try {
+    const res = await checkResumable(props.simulationId)
+    if (res.success && res.data) {
+      resumableInfo.value = res.data
+      
+      if (res.data.resumable) {
+        addLog(`检测到可恢复的模拟进度: ${res.data.current_round}/${res.data.total_rounds} 轮 (${res.data.progress_percent}%)`)
+        showResumeDialog.value = true
+      } else {
+        addLog('未检测到可恢复的进度，将重新开始')
+        doStartSimulation(false)
+      }
+    } else {
+      addLog('检查恢复状态失败，将重新开始')
+      doStartSimulation(false)
+    }
+  } catch (err) {
+    addLog(`检查恢复状态异常: ${err.message}，将重新开始`)
+    doStartSimulation(false)
+  } finally {
+    isCheckingResumable.value = false
+  }
+}
+
+// 用户选择继续运行
+const handleResumeSimulation = () => {
+  showResumeDialog.value = false
+  doStartSimulation(true)
+}
+
+// 用户选择重新开始
+const handleRestartSimulation = () => {
+  showResumeDialog.value = false
+  doStartSimulation(false)
 }
 
 // 轮询状态
@@ -704,7 +823,7 @@ watch(() => props.systemLogs?.length, () => {
 onMounted(() => {
   addLog('Step3 模拟运行初始化')
   if (props.simulationId) {
-    doStartSimulation()
+    checkResumableStatus()
   }
 })
 
@@ -1294,5 +1413,156 @@ onUnmounted(() => {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
+}
+
+/* 恢复对话框样式 */
+.resume-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.resume-dialog {
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  overflow: hidden;
+  animation: dialogSlideIn 0.3s ease-out;
+}
+
+@keyframes dialogSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.resume-dialog-header {
+  padding: 24px;
+  border-bottom: 1px solid #EAEAEA;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resume-icon {
+  color: #FF6B35;
+  flex-shrink: 0;
+}
+
+.resume-dialog-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.resume-dialog-content {
+  padding: 24px;
+}
+
+.resume-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.resume-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resume-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.resume-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1A1A1A;
+  font-family: 'Space Mono', monospace;
+}
+
+.resume-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: #F5F5F5;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.resume-hint svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #999;
+}
+
+.resume-dialog-actions {
+  padding: 16px 24px 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.resume-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.resume-btn.secondary {
+  background: #F5F5F5;
+  color: #666;
+}
+
+.resume-btn.secondary:hover {
+  background: #EAEAEA;
+  color: #1A1A1A;
+}
+
+.resume-btn.primary {
+  background: #FF6B35;
+  color: #FFFFFF;
+}
+
+.resume-btn.primary:hover {
+  background: #E55A2B;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+.resume-btn svg {
+  width: 16px;
+  height: 16px;
 }
 </style>

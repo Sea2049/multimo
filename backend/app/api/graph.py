@@ -4,6 +4,7 @@
 """
 
 import os
+import time
 import traceback
 import threading
 from flask import request, jsonify
@@ -213,12 +214,21 @@ def generate_ontology():
         
         # 生成本体
         logger.info("调用 LLM 生成本体定义...")
-        generator = OntologyGenerator()
-        ontology = generator.generate(
-            document_texts=document_texts,
-            simulation_requirement=simulation_requirement,
-            additional_context=additional_context if additional_context else None
-        )
+        try:
+            generator = OntologyGenerator()
+            ontology = generator.generate(
+                document_texts=document_texts,
+                simulation_requirement=simulation_requirement,
+                additional_context=additional_context if additional_context else None
+            )
+        except Exception as llm_error:
+            logger.error(f"LLM 调用失败: {str(llm_error)}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                "success": False,
+                "error": f"LLM 调用失败: {str(llm_error)}",
+                "traceback": traceback.format_exc()
+            }), 500
         
         # 保存本体到项目
         entity_count = len(ontology.get("entity_types", []))

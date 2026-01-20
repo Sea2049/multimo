@@ -14,7 +14,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/blob/main/LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/Multimo)
-[![Version](https://img.shields.io/badge/version-v1.3.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
+[![Version](https://img.shields.io/badge/version-v1.4.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -331,6 +331,28 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 </a>
 
 ## 📝 更新日志
+
+### v1.4.0 (2026-01-20)
+
+**功能更新：**
+- 🚀 新增本体生成功能：POST /api/graph/ontology/generate
+- 🚀 新增任务状态查询：GET /api/graph/task/{task_id}
+- 🚀 新增项目信息查询：GET /api/graph/project/{project_id}
+- 🚀 新增文档添加功能：POST /api/graph/project/{project_id}/documents/add
+- 🚀 新增图谱数据查询：GET /api/graph/data/{graph_id}
+- 🚀 新增模拟恢复检查：GET /api/simulation/{id}/resumable
+
+**代码改进：**
+- ⚡ 前端 graph.js API 客户端重构
+- ⚡ 新增 requestWithRetry 统一重试机制
+
+**前端 API 客户端新增函数：**
+- 生成本体：generateOntology
+- 查询任务状态：getTaskStatus
+- 获取图谱数据：getGraphData
+- 获取项目信息：getProject
+- 添加文档：addDocuments
+- 检查模拟恢复：checkResumable
 
 ### v1.3.0 (2026-01-20)
 

@@ -12,24 +12,24 @@
       <section class="hero-section">
         <div class="hero-left">
           <div class="tag-row">
-            <span class="orange-tag">简洁通用的群体智能引擎</span>
+            <span class="minimal-tag">简洁通用的群体智能引擎</span>
           </div>
           
           <h1 class="main-title">
             上传任意报告<br>
-            <span class="gradient-text">即刻推演未来</span>
+            即刻推演未来
           </h1>
           
           <div class="hero-desc">
             <p>
-              即使只有一段文字，<span class="highlight-bold">Multimo</span> 也能基于其中的现实种子，全自动生成与之对应的至多<span class="highlight-orange">百万级Agent</span>构成的平行世界。通过上帝视角注入变量，在复杂的群体交互中寻找动态环境下的<span class="highlight-code">"局部最优解"</span>
+              即使只有一段文字，Multimo 也能基于其中的现实种子，全自动生成与之对应的至多百万级 Agent 构成的平行世界。通过上帝视角注入变量，在复杂的群体交互中寻找动态环境下的"局部最优解"。
             </p>
             <p class="slogan-text">
-              让未来在 Agent 群中预演，让决策在百战后胜出<span class="blinking-cursor">_</span>
+              让未来在 Agent 群中预演，让决策在百战后胜出
             </p>
           </div>
            
-          <div class="decoration-square"></div>
+          <div class="decoration-line"></div>
         </div>
         
         <div class="hero-right">
@@ -49,7 +49,7 @@
         <!-- 左栏：状态与步骤 -->
         <div class="left-panel">
           <div class="panel-header">
-            <span class="status-dot">■</span> 系统状态
+            SYSTEM STATUS
           </div>
           
           <h2 class="section-title">准备就绪</h2>
@@ -63,6 +63,7 @@
               <div class="metric-value">低成本</div>
               <div class="metric-label">常规模拟平均5$/次</div>
             </div>
+            <div class="metric-divider"></div>
             <div class="metric-card">
               <div class="metric-value">高可用</div>
               <div class="metric-label">最多百万级Agent模拟</div>
@@ -72,7 +73,7 @@
           <!-- 项目模拟步骤介绍 (新增区域) -->
           <div class="steps-container">
             <div class="steps-header">
-               <span class="diamond-icon">◇</span> 工作流序列
+               WORKFLOW SEQUENCE
             </div>
             <div class="workflow-list">
               <div class="workflow-item">
@@ -180,6 +181,97 @@
               </div>
             </div>
 
+            <!-- 分割线 -->
+            <div class="console-divider">
+              <span>配置</span>
+            </div>
+
+            <!-- 模拟轮数 -->
+            <div class="console-section">
+              <div class="console-header">
+                <span class="console-label">>_ 03 / 模拟轮数</span>
+              </div>
+              <div class="rounds-input-wrapper">
+                <input 
+                  type="number" 
+                  v-model.number="formData.rounds" 
+                  class="rounds-input"
+                  min="1"
+                  max="100"
+                >
+                <span class="rounds-unit">Rounds</span>
+              </div>
+              <div class="rounds-hints">
+                <div class="hint-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                  </svg>
+                  <span>建议: {{ recommendedRounds }} 轮</span>
+                </div>
+                <div class="hint-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  <span>预计: 约 {{ estimatedTime }} 分钟</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 高级选项 -->
+            <div class="advanced-options">
+              <div class="advanced-header" @click="showAdvanced = !showAdvanced">
+                <div class="advanced-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M12 1v6m0 6v6"></path>
+                    <path d="m4.93 4.93 4.24 4.24m5.66 5.66 4.24 4.24"></path>
+                    <path d="M1 12h6m6 0h6"></path>
+                    <path d="m4.93 19.07 4.24-4.24m5.66-5.66 4.24-4.24"></path>
+                  </svg>
+                  <span>高级选项</span>
+                </div>
+                <svg 
+                  class="advanced-arrow" 
+                  :class="{ expanded: showAdvanced }"
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  stroke-width="2"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+              
+              <Transition name="slide-fade">
+                <div v-if="showAdvanced" class="advanced-content">
+                  <div class="manual-mode-option">
+                    <label class="checkbox-wrapper">
+                      <input 
+                        type="checkbox" 
+                        v-model="enableManualMode"
+                        @change="toggleManualMode"
+                      >
+                      <span class="checkbox-custom"></span>
+                      <span class="checkbox-label">启用手动模式</span>
+                    </label>
+                    <div class="mode-explanation">
+                      <p>启用后每个步骤将暂停等待您的确认。</p>
+                      <p class="explanation-title">适用场景：</p>
+                      <ul>
+                        <li>需要查看中间结果</li>
+                        <li>调整模拟参数</li>
+                        <li>开发调试</li>
+                      </ul>
+                      <p class="explanation-note">💡 大多数情况下，推荐使用默认的自动驾驶模式。</p>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+            </div>
+
             <!-- 启动按钮 -->
             <div class="console-section btn-section">
               <button 
@@ -211,7 +303,9 @@ const router = useRouter()
 
 // 表单数据
 const formData = ref({
-  simulationRequirement: ''
+  simulationRequirement: '',
+  mode: 'auto', // 默认自动驾驶
+  rounds: 15    // 默认15轮
 })
 
 // 文件列表
@@ -222,6 +316,10 @@ const loading = ref(false)
 const error = ref('')
 const isDragOver = ref(false)
 
+// 高级选项状态
+const showAdvanced = ref(false)
+const enableManualMode = ref(false)
+
 // 文件输入引用
 const fileInput = ref(null)
 
@@ -229,6 +327,25 @@ const fileInput = ref(null)
 const canSubmit = computed(() => {
   return formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
 })
+
+// 计算属性:推荐轮数
+const recommendedRounds = computed(() => {
+  if (files.value.length === 0) return 15
+  if (files.value.length <= 2) return 10
+  if (files.value.length <= 5) return 15
+  return 20
+})
+
+// 计算属性:预估时间
+const estimatedTime = computed(() => {
+  const baseTime = formData.value.rounds * 0.6
+  return Math.round(baseTime)
+})
+
+// 监听手动模式切换
+const toggleManualMode = () => {
+  formData.value.mode = enableManualMode.value ? 'manual' : 'auto'
+}
 
 // 触发文件选择
 const triggerFileInput = () => {
@@ -290,7 +407,7 @@ const startSimulation = () => {
   
   // 存储待上传的数据
   import('../store/pendingUpload.js').then(({ setPendingUpload }) => {
-    setPendingUpload(files.value, formData.value.simulationRequirement)
+    setPendingUpload(files.value, formData.value.simulationRequirement, formData.value.mode)
     
     // 立即跳转到Process页面（使用特殊标识表示新建项目）
     router.push({
@@ -373,96 +490,57 @@ const startSimulation = () => {
   display: flex;
   align-items: center;
   gap: 15px;
-  margin-bottom: 25px;
+  margin-bottom: 30px;
   font-family: var(--font-mono);
   font-size: 0.8rem;
 }
 
-.orange-tag {
-  background: var(--orange);
-  color: var(--white);
-  padding: 4px 10px;
-  font-weight: 700;
+.minimal-tag {
+  border: 1px solid var(--black);
+  color: var(--black);
+  padding: 4px 12px;
+  font-weight: 500;
   letter-spacing: 1px;
   font-size: 0.75rem;
+  border-radius: 20px;
 }
 
 .main-title {
-  font-size: 4.5rem;
-  line-height: 1.2;
-  font-weight: 500;
+  font-size: 4rem;
+  line-height: 1.1;
+  font-weight: 400;
   margin: 0 0 40px 0;
-  letter-spacing: -2px;
+  letter-spacing: -1px;
   color: var(--black);
 }
 
-.gradient-text {
-  background: linear-gradient(90deg, #000000 0%, #444444 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  display: inline-block;
-}
-
 .hero-desc {
-  font-size: 1.05rem;
+  font-size: 1rem;
   line-height: 1.8;
-  color: var(--gray-text);
-  max-width: 640px;
+  color: #555;
+  max-width: 600px;
   margin-bottom: 50px;
   font-weight: 400;
-  text-align: justify;
+  text-align: left;
 }
 
 .hero-desc p {
   margin-bottom: 1.5rem;
 }
 
-.highlight-bold {
-  color: var(--black);
-  font-weight: 700;
-}
-
-.highlight-orange {
-  color: var(--orange);
-  font-weight: 700;
-  font-family: var(--font-mono);
-}
-
-.highlight-code {
-  background: rgba(0, 0, 0, 0.05);
-  padding: 2px 6px;
-  border-radius: 2px;
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  color: var(--black);
-  font-weight: 600;
-}
-
 .slogan-text {
-  font-size: 1.2rem;
-  font-weight: 520;
-  color: var(--black);
-  letter-spacing: 1px;
-  border-left: 3px solid var(--orange);
-  padding-left: 15px;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: #888;
+  letter-spacing: 0.5px;
   margin-top: 20px;
+  font-style: italic;
 }
 
-.blinking-cursor {
-  color: var(--orange);
-  animation: blink 1s step-end infinite;
-  font-weight: 700;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.decoration-square {
-  width: 16px;
-  height: 16px;
-  background: var(--orange);
+.decoration-line {
+  width: 40px;
+  height: 2px;
+  background: var(--black);
 }
 
 .hero-right {
@@ -525,75 +603,74 @@ const startSimulation = () => {
 
 .panel-header {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: #999;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.status-dot {
-  color: var(--orange);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  color: var(--black);
+  letter-spacing: 2px;
+  margin-bottom: 30px;
+  font-weight: 700;
 }
 
 .section-title {
-  font-size: 2rem;
-  font-weight: 520;
-  margin: 0 0 15px 0;
+  font-size: 2.5rem;
+  font-weight: 300;
+  margin: 0 0 20px 0;
+  letter-spacing: -1px;
 }
 
 .section-desc {
-  color: var(--gray-text);
-  margin-bottom: 25px;
+  color: #666;
+  margin-bottom: 40px;
   line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 .metrics-row {
   display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
+  align-items: center;
+  gap: 40px;
+  margin-bottom: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid #EEE;
 }
 
 .metric-card {
-  border: 1px solid var(--border);
-  padding: 20px 30px;
-  min-width: 150px;
+  border: none;
+  padding: 0;
+  min-width: auto;
+}
+
+.metric-divider {
+  width: 1px;
+  height: 40px;
+  background: #EEE;
 }
 
 .metric-value {
   font-family: var(--font-mono);
-  font-size: 1.8rem;
-  font-weight: 520;
+  font-size: 1.5rem;
+  font-weight: 400;
   margin-bottom: 5px;
 }
 
 .metric-label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #999;
 }
 
 /* 项目模拟步骤介绍 */
 .steps-container {
-  border: 1px solid var(--border);
-  padding: 30px;
+  border: none;
+  padding: 0;
   position: relative;
 }
 
 .steps-header {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: #999;
-  margin-bottom: 25px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.diamond-icon {
-  font-size: 1.2rem;
-  line-height: 1;
+  font-size: 0.75rem;
+  color: var(--black);
+  letter-spacing: 2px;
+  margin-bottom: 30px;
+  font-weight: 700;
 }
 
 .workflow-list {
@@ -610,9 +687,10 @@ const startSimulation = () => {
 
 .step-num {
   font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--black);
-  opacity: 0.3;
+  opacity: 0.2;
+  font-size: 0.9rem;
 }
 
 .step-info {
@@ -620,9 +698,10 @@ const startSimulation = () => {
 }
 
 .step-title {
-  font-weight: 520;
-  font-size: 1rem;
+  font-weight: 500;
+  font-size: 0.95rem;
   margin-bottom: 4px;
+  letter-spacing: 0.5px;
 }
 
 .step-desc {
@@ -823,6 +902,210 @@ const startSimulation = () => {
   cursor: not-allowed;
   transform: none;
   border: 1px solid #E5E5E5;
+}
+
+/* 轮数输入样式 */
+.rounds-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #FAFAFA;
+  border: 1px solid #DDD;
+  padding: 10px 15px;
+}
+
+.rounds-input {
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: 700;
+  width: 60px;
+  outline: none;
+}
+
+.rounds-unit {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.rounds-hints {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  padding: 0 4px;
+}
+
+.hint-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.hint-item svg {
+  color: #999;
+  flex-shrink: 0;
+}
+
+/* 高级选项样式 */
+.advanced-options {
+  margin-top: 16px;
+  border: 1px solid #EAEAEA;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #FAFAFA;
+}
+
+.advanced-header {
+  padding: 12px 16px;
+  background: #F5F5F5;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.2s;
+  user-select: none;
+}
+
+.advanced-header:hover {
+  background: #ECECEC;
+}
+
+.advanced-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #666;
+}
+
+.advanced-title svg {
+  color: #999;
+}
+
+.advanced-arrow {
+  color: #999;
+  transition: transform 0.3s;
+}
+
+.advanced-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.advanced-content {
+  padding: 16px;
+  background: #FAFAFA;
+  border-top: 1px solid #EAEAEA;
+}
+
+.manual-mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+  display: none;
+}
+
+.checkbox-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #CCC;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom {
+  background: var(--black);
+  border-color: var(--black);
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom::after {
+  content: '✓';
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.checkbox-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.mode-explanation {
+  padding: 12px;
+  background: #FFFFFF;
+  border: 1px solid #E0E0E0;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: #666;
+}
+
+.mode-explanation p {
+  margin: 0 0 8px 0;
+}
+
+.mode-explanation .explanation-title {
+  font-weight: 600;
+  color: #333;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+.mode-explanation ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.mode-explanation li {
+  margin: 4px 0;
+}
+
+.mode-explanation .explanation-note {
+  margin-top: 12px;
+  padding: 8px;
+  background: #FFF9E6;
+  border-left: 3px solid #FFD700;
+  color: #666;
+  font-size: 0.75rem;
+}
+
+/* 过渡动画 */
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.slide-fade-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
 }
 
 /* 引导动画：微妙的边框脉冲 */

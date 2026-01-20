@@ -308,7 +308,8 @@ class SimulationRunner:
         platform: str = "parallel",  # twitter / reddit / parallel
         max_rounds: int = None,  # 最大模拟轮数（可选，用于截断过长的模拟）
         enable_graph_memory_update: bool = False,  # 是否将活动更新到Zep图谱
-        graph_id: str = None  # Zep图谱ID（启用图谱更新时必需）
+        graph_id: str = None,  # Zep图谱ID（启用图谱更新时必需）
+        resume: bool = False  # 是否尝试从上次中断处恢复
     ) -> SimulationRunState:
         """
         启动模拟
@@ -319,6 +320,7 @@ class SimulationRunner:
             max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
             enable_graph_memory_update: 是否将Agent活动动态更新到Zep图谱
             graph_id: Zep图谱ID（启用图谱更新时必需）
+            resume: 是否尝试从上次中断处恢复
             
         Returns:
             SimulationRunState
@@ -351,11 +353,32 @@ class SimulationRunner:
             if total_rounds < original_rounds:
                 logger.info(f"轮数已截断: {original_rounds} -> {total_rounds} (max_rounds={max_rounds})")
         
+        # 如果是恢复模式，尝试读取现有状态
+        current_round = 0
+        if resume and existing:
+            current_round = existing.current_round
+            logger.info(f"尝试恢复模拟: simulation_id={simulation_id}, 从第 {current_round} 轮继续")
+            
+            # 验证数据文件完整性
+            twitter_db = os.path.join(sim_dir, "twitter_simulation.db")
+            reddit_db = os.path.join(sim_dir, "reddit_simulation.db")
+            has_twitter = os.path.exists(twitter_db)
+            has_reddit = os.path.exists(reddit_db)
+            
+            if not has_twitter and not has_reddit:
+                logger.warning(f"恢复模式：未找到数据库文件，将重新开始")
+                resume = False
+                current_round = 0
+            elif current_round == 0:
+                logger.warning(f"恢复模式：当前轮次为0，将重新开始")
+                resume = False
+        
         state = SimulationRunState(
             simulation_id=simulation_id,
             runner_status=RunnerStatus.STARTING,
             total_rounds=total_rounds,
             total_simulation_hours=total_hours,
+            current_round=current_round,  # 设置当前轮次
             started_at=datetime.now().isoformat(),
         )
         
@@ -415,9 +438,19 @@ class SimulationRunner:
             if max_rounds is not None and max_rounds > 0:
                 cmd.extend(["--max-rounds", str(max_rounds)])
             
+            # 如果是恢复模式，添加 --resume 参数
+            if resume:
+                cmd.append("--resume")
+            
             # 创建主日志文件，避免 stdout/stderr 管道缓冲区满导致进程阻塞
             main_log_path = os.path.join(sim_dir, "simulation.log")
-            main_log_file = open(main_log_path, 'w', encoding='utf-8')
+            # 如果是恢复模式，使用追加模式 ('a')，否则使用覆盖模式 ('w')
+            mode = 'a' if resume else 'w'
+            main_log_file = open(main_log_path, mode, encoding='utf-8')
+            
+            if resume:
+                main_log_file.write(f"\n\n--- 模拟恢复启动: {datetime.now().isoformat()} ---\n\n")
+                main_log_file.flush()
             
             # 设置子进程环境变量，确保 Windows 上使用 UTF-8 编码
             # 这可以修复第三方库（如 OASIS）读取文件时未指定编码的问题

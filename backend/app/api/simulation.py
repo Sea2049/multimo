@@ -1498,6 +1498,7 @@ def start_simulation():
         max_rounds = data.get('max_rounds')  # 可选：最大模拟轮数
         enable_graph_memory_update = data.get('enable_graph_memory_update', False)  # 可选：是否启用图谱记忆更新
         force = data.get('force', False)  # 可选：强制重新开始
+        resume = data.get('resume', False)  # 可选：是否从上次中断处恢复
 
         # 验证 max_rounds 参数
         if max_rounds is not None:
@@ -1564,6 +1565,7 @@ def start_simulation():
                     if not cleanup_result.get("success"):
                         logger.warning(f"清理日志时出现警告: {cleanup_result.get('errors')}")
                     force_restarted = True
+                    resume = False  # 强制模式下不使用恢复
 
                 # 进程不存在或已结束，重置状态为 ready
                 logger.info(f"模拟 {simulation_id} 准备工作已完成，重置状态为 ready（原状态: {state.status.value}）")
@@ -1601,7 +1603,8 @@ def start_simulation():
             platform=platform,
             max_rounds=max_rounds,
             enable_graph_memory_update=enable_graph_memory_update,
-            graph_id=graph_id
+            graph_id=graph_id,
+            resume=resume
         )
         
         # 更新模拟状态
@@ -1613,6 +1616,7 @@ def start_simulation():
             response_data['max_rounds_applied'] = max_rounds
         response_data['graph_memory_update_enabled'] = enable_graph_memory_update
         response_data['force_restarted'] = force_restarted
+        response_data['resumed'] = resume  # 标识是否是恢复模式
         if enable_graph_memory_update:
             response_data['graph_id'] = graph_id
         
@@ -1693,6 +1697,112 @@ def stop_simulation():
             "error": str(e),
             "traceback": traceback.format_exc()
         }), 500
+
+
+@simulation_bp.route('/<simulation_id>/resumable', methods=['GET'])
+def check_resumable(simulation_id: str):
+    """
+    检查模拟是否可以恢复
+    
+    返回：
+        {
+            "success": true,
+            "data": {
+                "resumable": true,              // 是否可以恢复
+                "current_round": 5,             // 已完成的轮次
+                "total_rounds": 15,             // 总轮次
+                "progress_percent": 33,         // 进度百分比
+                "last_run_time": "2025-01-20T10:30:00",  // 最后运行时间
+                "status": "paused",             // 当前状态
+                "has_data": true,               // 是否有数据文件
+                "twitter_actions": 120,         // Twitter 动作数
+                "reddit_actions": 85            // Reddit 动作数
+            }
+        }
+    """
+    try:
+        # 检查模拟是否存在
+        manager = SimulationManager()
+        state = manager.get_simulation(simulation_id)
+        
+        if not state:
+            return jsonify({
+                "success": False,
+                "error": f"模拟不存在: {simulation_id}"
+            }), 404
+        
+        # 获取运行状态
+        run_state = SimulationRunner.get_run_state(simulation_id)
+        
+        # 检查数据文件是否存在
+        sim_dir = os.path.join(SimulationRunner.RUN_STATE_DIR, simulation_id)
+        twitter_db = os.path.join(sim_dir, "twitter_simulation.db")
+        reddit_db = os.path.join(sim_dir, "reddit_simulation.db")
+        has_twitter_data = os.path.exists(twitter_db)
+        has_reddit_data = os.path.exists(reddit_db)
+        has_data = has_twitter_data or has_reddit_data
+        
+        # 判断是否可以恢复
+        resumable = False
+        current_round = 0
+        total_rounds = 0
+        progress_percent = 0
+        last_run_time = None
+        twitter_actions = 0
+        reddit_actions = 0
+        
+        if run_state:
+            current_round = run_state.current_round
+            total_rounds = run_state.total_rounds
+            twitter_actions = run_state.twitter_actions_count
+            reddit_actions = run_state.reddit_actions_count
+            
+            if total_rounds > 0:
+                progress_percent = int((current_round / total_rounds) * 100)
+            
+            # 可以恢复的条件：
+            # 1. 状态为 PAUSED 或 STOPPED
+            # 2. 有进度数据（current_round > 0）
+            # 3. 未完成（current_round < total_rounds）
+            # 4. 有数据文件
+            if (run_state.runner_status.value in ['paused', 'stopped'] and 
+                current_round > 0 and 
+                current_round < total_rounds and
+                has_data):
+                resumable = True
+            
+            # 获取最后运行时间
+            if run_state.completed_at:
+                last_run_time = run_state.completed_at
+            elif run_state.started_at:
+                last_run_time = run_state.started_at
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "resumable": resumable,
+                "current_round": current_round,
+                "total_rounds": total_rounds,
+                "progress_percent": progress_percent,
+                "last_run_time": last_run_time,
+                "status": state.status.value,
+                "runner_status": run_state.runner_status.value if run_state else None,
+                "has_data": has_data,
+                "has_twitter_data": has_twitter_data,
+                "has_reddit_data": has_reddit_data,
+                "twitter_actions": twitter_actions,
+                "reddit_actions": reddit_actions
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"检查可恢复状态失败: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 
 from ..services.export_service import ExportService
 

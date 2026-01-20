@@ -1,74 +1,139 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
   <defs>
-    <!-- 渐变定义：橙色到紫色，体现科技感 -->
-    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- 简洁的渐变 -->
+    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#FF6B35"/>
-      <stop offset="50%" style="stop-color:#F7931E"/>
       <stop offset="100%" style="stop-color:#9B59B6"/>
     </linearGradient>
     
-    <!-- 发光效果 -->
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+    <!-- 节点渐变 -->
+    <radialGradient id="nodeGradient">
+      <stop offset="0%" style="stop-color:#FF6B35"/>
+      <stop offset="100%" style="stop-color:#F7931E"/>
+    </radialGradient>
   </defs>
   
-  <!-- 背景圆环：代表平行世界 -->
-  <circle cx="100" cy="100" r="85" fill="none" stroke="url(#mainGradient)" stroke-width="2" opacity="0.3"/>
-  <circle cx="100" cy="100" r="70" fill="none" stroke="url(#mainGradient)" stroke-width="1.5" opacity="0.2"/>
+  <!-- 外层椭球形集合 - 最透明 -->
+  <ellipse cx="200" cy="200" rx="160" ry="140" 
+           fill="none" stroke="url(#lineGradient)" 
+           stroke-width="1" opacity="0.15"/>
   
-  <!-- 中心核心：代表引擎 -->
-  <circle cx="100" cy="100" r="15" fill="url(#mainGradient)" filter="url(#glow)"/>
+  <!-- 中层椭球形集合 -->
+  <ellipse cx="200" cy="200" rx="120" ry="100" 
+           fill="none" stroke="url(#lineGradient)" 
+           stroke-width="1" opacity="0.2"/>
   
-  <!-- Agent 节点群：代表百万级 Agent -->
-  <!-- 第一层节点 -->
-  <circle cx="100" cy="50" r="8" fill="#FF6B35" opacity="0.9"/>
-  <circle cx="143" cy="75" r="8" fill="#F7931E" opacity="0.9"/>
-  <circle cx="143" cy="125" r="8" fill="#FF8C42" opacity="0.9"/>
-  <circle cx="100" cy="150" r="8" fill="#9B59B6" opacity="0.9"/>
-  <circle cx="57" cy="125" r="8" fill="#8E44AD" opacity="0.9"/>
-  <circle cx="57" cy="75" r="8" fill="#FF6B35" opacity="0.9"/>
+  <!-- 内层椭球形集合 -->
+  <ellipse cx="200" cy="200" rx="80" ry="70" 
+           fill="none" stroke="url(#lineGradient)" 
+           stroke-width="1" opacity="0.25"/>
   
-  <!-- 第二层小节点 -->
-  <circle cx="120" cy="45" r="4" fill="#F7931E" opacity="0.7"/>
-  <circle cx="155" cy="100" r="4" fill="#FF8C42" opacity="0.7"/>
-  <circle cx="120" cy="155" r="4" fill="#9B59B6" opacity="0.7"/>
-  <circle cx="80" cy="155" r="4" fill="#8E44AD" opacity="0.7"/>
-  <circle cx="45" cy="100" r="4" fill="#FF6B35" opacity="0.7"/>
-  <circle cx="80" cy="45" r="4" fill="#F7931E" opacity="0.7"/>
-  
-  <!-- 连接线：代表群体交互 -->
-  <g stroke="url(#mainGradient)" stroke-width="1.5" opacity="0.6">
-    <!-- 中心到第一层 -->
-    <line x1="100" y1="100" x2="100" y2="50"/>
-    <line x1="100" y1="100" x2="143" y2="75"/>
-    <line x1="100" y1="100" x2="143" y2="125"/>
-    <line x1="100" y1="100" x2="100" y2="150"/>
-    <line x1="100" y1="100" x2="57" y2="125"/>
-    <line x1="100" y1="100" x2="57" y2="75"/>
+  <!-- 连接线 - 更透明 -->
+  <g stroke="url(#lineGradient)" stroke-width="1.5" fill="none" opacity="0.3">
+    <!-- 中心到第一层（6个方向） -->
+    <line x1="200" y1="200" x2="200" y2="130"/>
+    <line x1="200" y1="200" x2="260" y2="165"/>
+    <line x1="200" y1="200" x2="260" y2="235"/>
+    <line x1="200" y1="200" x2="200" y2="270"/>
+    <line x1="200" y1="200" x2="140" y2="235"/>
+    <line x1="200" y1="200" x2="140" y2="165"/>
+    
+    <!-- 第一层到第二层 -->
+    <line x1="200" y1="130" x2="200" y2="80"/>
+    <line x1="200" y1="130" x2="240" y2="110"/>
+    <line x1="200" y1="130" x2="160" y2="110"/>
+    
+    <line x1="260" y1="165" x2="300" y2="150"/>
+    <line x1="260" y1="165" x2="290" y2="190"/>
+    
+    <line x1="260" y1="235" x2="300" y2="250"/>
+    <line x1="260" y1="235" x2="290" y2="210"/>
+    
+    <line x1="200" y1="270" x2="200" y2="320"/>
+    <line x1="200" y1="270" x2="240" y2="290"/>
+    <line x1="200" y1="270" x2="160" y2="290"/>
+    
+    <line x1="140" y1="235" x2="100" y2="250"/>
+    <line x1="140" y1="235" x2="110" y2="210"/>
+    
+    <line x1="140" y1="165" x2="100" y2="150"/>
+    <line x1="140" y1="165" x2="110" y2="190"/>
+    
+    <!-- 第二层到第三层（外围） -->
+    <line x1="200" y1="80" x2="200" y2="60"/>
+    <line x1="240" y1="110" x2="270" y2="90"/>
+    <line x1="160" y1="110" x2="130" y2="90"/>
+    
+    <line x1="300" y1="150" x2="330" y2="140"/>
+    <line x1="290" y1="190" x2="320" y2="200"/>
+    
+    <line x1="300" y1="250" x2="330" y2="260"/>
+    <line x1="290" y1="210" x2="320" y2="200"/>
+    
+    <line x1="200" y1="320" x2="200" y2="340"/>
+    <line x1="240" y1="290" x2="270" y2="310"/>
+    <line x1="160" y1="290" x2="130" y2="310"/>
+    
+    <line x1="100" y1="250" x2="70" y2="260"/>
+    <line x1="110" y1="210" x2="80" y2="200"/>
+    
+    <line x1="100" y1="150" x2="70" y2="140"/>
+    <line x1="110" y1="190" x2="80" y2="200"/>
     
     <!-- 第一层之间的连接 -->
-    <line x1="100" y1="50" x2="143" y2="75"/>
-    <line x1="143" y1="75" x2="143" y2="125"/>
-    <line x1="143" y1="125" x2="100" y2="150"/>
-    <line x1="100" y1="150" x2="57" y2="125"/>
-    <line x1="57" y1="125" x2="57" y2="75"/>
-    <line x1="57" y1="75" x2="100" y2="50"/>
+    <line x1="200" y1="130" x2="260" y2="165" opacity="0.2"/>
+    <line x1="260" y1="165" x2="260" y2="235" opacity="0.2"/>
+    <line x1="260" y1="235" x2="200" y2="270" opacity="0.2"/>
+    <line x1="200" y1="270" x2="140" y2="235" opacity="0.2"/>
+    <line x1="140" y1="235" x2="140" y2="165" opacity="0.2"/>
+    <line x1="140" y1="165" x2="200" y2="130" opacity="0.2"/>
   </g>
   
-  <!-- 外层连接线 -->
-  <g stroke="url(#mainGradient)" stroke-width="1" opacity="0.4">
-    <line x1="100" y1="50" x2="120" y2="45"/>
-    <line x1="100" y1="50" x2="80" y2="45"/>
-    <line x1="143" y1="75" x2="155" y2="100"/>
-    <line x1="143" y1="125" x2="155" y2="100"/>
-    <line x1="100" y1="150" x2="120" y2="155"/>
-    <line x1="100" y1="150" x2="80" y2="155"/>
-    <line x1="57" y1="125" x2="45" y2="100"/>
-    <line x1="57" y1="75" x2="45" y2="100"/>
+  <!-- 第三层节点 - 最外围（12个） -->
+  <g fill="#FF6B35" opacity="0.4">
+    <circle cx="200" cy="60" r="4"/>
+    <circle cx="270" cy="90" r="4"/>
+    <circle cx="330" cy="140" r="4"/>
+    <circle cx="320" cy="200" r="4"/>
+    <circle cx="330" cy="260" r="4"/>
+    <circle cx="270" cy="310" r="4"/>
+    <circle cx="200" cy="340" r="4"/>
+    <circle cx="130" cy="310" r="4"/>
+    <circle cx="70" cy="260" r="4"/>
+    <circle cx="80" cy="200" r="4"/>
+    <circle cx="70" cy="140" r="4"/>
+    <circle cx="130" cy="90" r="4"/>
   </g>
+  
+  <!-- 第二层节点（12个） -->
+  <g fill="url(#nodeGradient)" opacity="0.5">
+    <circle cx="200" cy="80" r="5"/>
+    <circle cx="240" cy="110" r="5"/>
+    <circle cx="300" cy="150" r="5"/>
+    <circle cx="290" cy="190" r="5"/>
+    <circle cx="300" cy="250" r="5"/>
+    <circle cx="240" cy="290" r="5"/>
+    <circle cx="200" cy="320" r="5"/>
+    <circle cx="160" cy="290" r="5"/>
+    <circle cx="100" cy="250" r="5"/>
+    <circle cx="110" cy="210" r="5"/>
+    <circle cx="100" cy="150" r="5"/>
+    <circle cx="160" cy="110" r="5"/>
+  </g>
+  
+  <!-- 第一层节点（6个） -->
+  <g fill="url(#nodeGradient)" opacity="0.7">
+    <circle cx="200" cy="130" r="7"/>
+    <circle cx="260" cy="165" r="7"/>
+    <circle cx="260" cy="235" r="7"/>
+    <circle cx="200" cy="270" r="7"/>
+    <circle cx="140" cy="235" r="7"/>
+    <circle cx="140" cy="165" r="7"/>
+  </g>
+  
+  <!-- 中心节点 - 核心 -->
+  <circle cx="200" cy="200" r="12" fill="url(#nodeGradient)" opacity="0.9"/>
+  
+  <!-- 中心节点边框 -->
+  <circle cx="200" cy="200" r="14" stroke="#FF6B35" stroke-width="1.5" fill="none" opacity="0.4"/>
 </svg>

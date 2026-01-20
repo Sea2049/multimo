@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
+        <div class="brand" @click="router.push('/')">MULTIMO</div>
       </div>
       
       <div class="header-center">
@@ -65,6 +65,8 @@
           :projectData="projectData"
           :graphData="graphData"
           :systemLogs="systemLogs"
+          :simulationMode="simulationMode"
+          :simulationRounds="simulationRounds"
           @go-back="handleGoBack"
           @next-step="handleNextStep"
           @add-log="addLog"
@@ -75,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
@@ -104,6 +106,8 @@ const currentPhase = ref(-1) // -1: Upload, 0: Ontology, 1: Build, 2: Complete
 const ontologyProgress = ref(null)
 const buildProgress = ref(null)
 const systemLogs = ref([])
+const simulationMode = ref('manual') // auto | manual
+const simulationRounds = ref(15)
 
 // Polling timers
 let pollTimer = null
@@ -203,6 +207,11 @@ const handleNewProject = async () => {
     const formData = new FormData()
     pending.files.forEach(f => formData.append('files', f))
     formData.append('simulation_requirement', pending.simulationRequirement)
+    
+    // 保存运行模式和轮数
+    simulationMode.value = pending.mode || 'manual'
+    simulationRounds.value = pending.rounds || 15
+    addLog(`Configuration: Mode=${simulationMode.value}, Rounds=${simulationRounds.value}`)
     
     const res = await generateOntology(formData)
     if (res.success) {
@@ -393,6 +402,16 @@ const stopGraphPolling = () => {
     addLog('Graph polling stopped.')
   }
 }
+
+// 自动驾驶逻辑：监听阶段变化
+watch(currentPhase, (newPhase) => {
+  if (newPhase === 2 && simulationMode.value === 'auto' && currentStep.value === 1) {
+    addLog('Auto-Pilot: Graph build completed. Proceeding to Step 2 in 3s...')
+    setTimeout(() => {
+      handleNextStep()
+    }, 3000)
+  }
+})
 
 onMounted(() => {
   initProject()

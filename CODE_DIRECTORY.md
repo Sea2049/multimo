@@ -103,8 +103,13 @@ backend/app/api/
 ```
 
 **backend/app/api/v1/graph.py**
+- POST /api/v1/graph/ontology/generate - 生成本体（上传文档和模拟需求）
 - POST /api/v1/graph/extract - 从文本中提取实体和关系
 - POST /api/v1/graph/build - 构建知识图谱
+- GET /api/v1/graph/task/<task_id> - 查询任务状态
+- GET /api/v1/graph/data/<graph_id> - 获取图谱数据
+- GET /api/v1/graph/project/<project_id> - 获取项目信息
+- POST /api/v1/graph/project/<project_id>/documents/add - 向现有项目添加文档
 - GET /api/v1/graph/<graph_id> - 获取指定知识图谱
 - GET /api/v1/graph/<graph_id>/export - 导出知识图谱为 JSON 文件
 - GET /api/v1/graph/entities - 获取实体列表
@@ -114,6 +119,7 @@ backend/app/api/
 - POST /api/v1/simulation/create - 创建模拟
 - POST /api/v1/simulation/prepare - 准备模拟环境
 - POST /api/v1/simulation/prepare/status - 获取准备状态
+- GET /api/v1/simulation/<id>/resumable - 检查模拟是否可以恢复
 - GET /api/v1/simulation/<id>/config - 获取模拟配置
 - GET /api/v1/simulation/<id>/config/realtime - 实时配置状态
 - GET /api/v1/simulation/<id>/profiles/realtime - 实时人设生成进度
@@ -676,8 +682,13 @@ frontend/src/api/
 
 **frontend/src/api/graph.js**
 - 封装图谱相关 API 调用
+- 生成本体：generateOntology
+- 提取实体和关系：buildGraph
+- 查询任务状态：getTaskStatus
+- 获取图谱数据：getGraphData
+- 获取项目信息：getProject
+- 添加文档：addDocuments
 - 上传种子材料
-- 提取实体和关系
 - 获取图谱数据
 - 导出图谱
 
@@ -686,6 +697,7 @@ frontend/src/api/
 - 创建模拟：createSimulation
 - 准备模拟环境：prepareSimulation
 - 获取准备状态：getPrepareStatus
+- 检查模拟恢复：checkResumable
 - 启动/停止模拟：startSimulation, stopSimulation
 - 获取运行状态：getRunStatus, getRunStatusDetail
 - 获取模拟信息：getSimulation
@@ -990,6 +1002,33 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.4.0 (2026-01-20)
+
+**重大更新：**
+- 🚀 新增本体生成功能：POST /api/graph/ontology/generate
+- 🚀 新增任务状态查询：GET /api/graph/task/{task_id}
+- 🚀 新增项目信息查询：GET /api/graph/project/{project_id}
+- 🚀 新增文档添加功能：POST /api/graph/project/{project_id}/documents/add
+- 🚀 新增图谱数据查询：GET /api/graph/data/{graph_id}
+- 🚀 新增模拟恢复检查：GET /api/simulation/{id}/resumable
+- ⚡ 前端 graph.js API 客户端重构，新增 requestWithRetry 统一重试机制
+
+**API 新增接口：**
+- `POST /api/graph/ontology/generate` - 生成本体（上传文档和模拟需求）
+- `GET /api/graph/task/{task_id}` - 查询任务状态
+- `GET /api/graph/data/{graph_id}` - 获取图谱数据
+- `GET /api/graph/project/{project_id}` - 获取项目信息
+- `POST /api/graph/project/{project_id}/documents/add` - 向现有项目添加文档
+- `GET /api/simulation/{id}/resumable` - 检查模拟是否可以恢复
+
+**前端 API 客户端新增函数：**
+- 生成本体：generateOntology
+- 查询任务状态：getTaskStatus
+- 获取图谱数据：getGraphData
+- 获取项目信息：getProject
+- 添加文档：addDocuments
+- 检查模拟恢复：checkResumable
 
 ### v1.3.0 (2026-01-20)
 

@@ -91,6 +91,122 @@ class GraphBuilderService:
         thread.start()
         
         return task_id
+
+    def add_documents_async(
+        self,
+        graph_id: str,
+        text: str,
+        chunk_size: int = 500,
+        chunk_overlap: int = 50,
+        batch_size: int = 3
+    ) -> str:
+        """
+        异步向现有图谱添加文档
+        
+        Args:
+            graph_id: 现有图谱ID
+            text: 新文档文本
+            chunk_size: 文本块大小
+            chunk_overlap: 块重叠大小
+            batch_size: 每批发送的块数量
+            
+        Returns:
+            任务ID
+        """
+        # 创建任务
+        task_id = self.task_manager.create_task(
+            task_type="graph_update",
+            metadata={
+                "graph_id": graph_id,
+                "chunk_size": chunk_size,
+                "text_length": len(text),
+            }
+        )
+        
+        # 在后台线程中执行更新
+        thread = threading.Thread(
+            target=self._add_documents_worker,
+            args=(task_id, graph_id, text, chunk_size, chunk_overlap, batch_size)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return task_id
+
+    def _add_documents_worker(
+        self,
+        task_id: str,
+        graph_id: str,
+        text: str,
+        chunk_size: int,
+        chunk_overlap: int,
+        batch_size: int
+    ):
+        """图谱更新工作线程"""
+        try:
+            self.task_manager.update_task(
+                task_id,
+                status=TaskStatus.PROCESSING,
+                progress=5,
+                message="开始处理新文档..."
+            )
+            
+            # 1. 文本分块
+            chunks = TextProcessor.split_text(text, chunk_size, chunk_overlap)
+            total_chunks = len(chunks)
+            self.task_manager.update_task(
+                task_id,
+                progress=10,
+                message=f"新文档已分割为 {total_chunks} 个块"
+            )
+            
+            # 2. 分批发送数据
+            episode_uuids = self.add_text_batches(
+                graph_id, chunks, batch_size,
+                lambda msg, prog: self.task_manager.update_task(
+                    task_id,
+                    progress=10 + int(prog * 0.5),  # 10-60%
+                    message=msg
+                )
+            )
+            
+            # 3. 等待Zep处理完成
+            self.task_manager.update_task(
+                task_id,
+                progress=60,
+                message="等待Zep处理新数据..."
+            )
+            
+            self._wait_for_episodes(
+                episode_uuids,
+                lambda msg, prog: self.task_manager.update_task(
+                    task_id,
+                    progress=60 + int(prog * 0.3),  # 60-90%
+                    message=msg
+                )
+            )
+            
+            # 4. 获取更新后的图谱信息
+            self.task_manager.update_task(
+                task_id,
+                progress=90,
+                message="获取更新后的图谱信息..."
+            )
+            
+            graph_info = self._get_graph_info(graph_id)
+            
+            # 完成
+            self.task_manager.complete_task(task_id, {
+                "graph_id": graph_id,
+                "graph_info": graph_info.to_dict(),
+                "chunks_added": total_chunks,
+            })
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"{str(e)}\n{traceback.format_exc()}"
+            self.task_manager.fail_task(task_id, error_msg)
+
     
     def _build_graph_worker(
         self,

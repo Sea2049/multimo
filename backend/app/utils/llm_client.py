@@ -26,6 +26,7 @@ class LLMClient:
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
         
+        # 创建 OpenAI 客户端，不设置全局 timeout，在请求级别设置
         self.client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url
@@ -36,7 +37,8 @@ class LLMClient:
         messages: List[Dict[str, str]],
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        response_format: Optional[Dict] = None
+        response_format: Optional[Dict] = None,
+        timeout: Optional[int] = None
     ) -> str:
         """
         发送聊天请求
@@ -46,6 +48,7 @@ class LLMClient:
             temperature: 温度参数
             max_tokens: 最大token数
             response_format: 响应格式（如JSON模式）
+            timeout: 超时时间（秒），默认 300 秒
             
         Returns:
             模型响应文本
@@ -60,6 +63,10 @@ class LLMClient:
         if response_format:
             kwargs["response_format"] = response_format
         
+        # 设置超时时间，默认 300 秒（5 分钟）
+        request_timeout = timeout if timeout is not None else 300
+        kwargs["timeout"] = request_timeout
+        
         response = self.client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
     
@@ -67,7 +74,8 @@ class LLMClient:
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.3,
-        max_tokens: int = 4096
+        max_tokens: int = 4096,
+        timeout: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         发送聊天请求并返回JSON
@@ -76,6 +84,7 @@ class LLMClient:
             messages: 消息列表
             temperature: 温度参数
             max_tokens: 最大token数
+            timeout: 超时时间（秒），默认 300 秒
             
         Returns:
             解析后的JSON对象
@@ -84,7 +93,8 @@ class LLMClient:
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            timeout=timeout
         )
         
         return json.loads(response)

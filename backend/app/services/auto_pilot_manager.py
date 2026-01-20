@@ -461,15 +461,43 @@ class AutoPilotManager:
         
         # 检查是否已完成
         if sim_state.status == SimulationStatus.COMPLETED:
-            logger.info(f"模拟已完成，跳过启动步骤: {simulation_id}")
-            return
+            # 检查是否真的完成了（轮数是否达标）
+            config = manager.get_simulation_config(simulation_id)
+            if config:
+                time_config = config.get("time_config", {})
+                total_hours = time_config.get("total_simulation_hours", 72)
+                minutes_per_round = time_config.get("minutes_per_round", 30)
+                target_rounds = int(total_hours * 60 / minutes_per_round)
+                
+                run_state = SimulationRunner.get_run_state(simulation_id)
+                current_round = run_state.current_round if run_state else 0
+                
+                if current_round < target_rounds:
+                    logger.info(f"模拟虽标记为完成，但轮数不足 ({current_round}/{target_rounds})，继续运行: {simulation_id}")
+                    # 继续向下执行启动逻辑
+                else:
+                    logger.info(f"模拟已完成 ({current_round}/{target_rounds})，跳过启动步骤: {simulation_id}")
+                    return
+            else:
+                logger.info(f"模拟已完成，跳过启动步骤: {simulation_id}")
+                return
         
         # 启动模拟
         logger.info(f"自动启动模拟: {simulation_id}")
         
+        # 检查是否是恢复执行（即之前已经运行过）
+        # 如果 last_completed_step 是 PREPARING，说明之前可能尝试过启动或运行
+        # 或者检查 run_state.json 是否存在且有进度
+        resume = False
+        run_state = SimulationRunner.get_run_state(simulation_id)
+        if run_state and run_state.current_round > 0:
+            resume = True
+            logger.info(f"检测到已有进度，尝试恢复模拟: {simulation_id}")
+        
         run_state = SimulationRunner.start_simulation(
             simulation_id=simulation_id,
-            platform='parallel'
+            platform='parallel',
+            resume=resume
         )
         
         if not run_state:

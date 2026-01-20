@@ -2,7 +2,7 @@
   <div class="process-page">
     <!-- 顶部导航栏 -->
     <nav class="navbar">
-      <div class="nav-brand" @click="goHome">MIROFISH</div>
+      <div class="nav-brand" @click="goHome">MULTIMO</div>
       
       <!-- 中间步骤指示器 -->
       <div class="nav-center">
@@ -404,6 +404,14 @@
               <span class="item-label">模拟需求</span>
               <span class="item-value">{{ projectData.simulation_requirement || '-' }}</span>
             </div>
+            <div class="project-item">
+              <span class="item-label">运行模式</span>
+              <span class="item-value">{{ simulationMode === 'auto' ? '自动驾驶' : '手动模式' }}</span>
+            </div>
+            <div class="project-item">
+              <span class="item-label">模拟轮数</span>
+              <span class="item-value code">{{ simulationRounds }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -435,6 +443,8 @@ const ontologyProgress = ref(null) // 本体生成进度
 const currentPhase = ref(-1) // -1: 上传中, 0: 本体生成中, 1: 图谱构建, 2: 完成
 const selectedItem = ref(null) // 选中的节点或边
 const isFullScreen = ref(false)
+const simulationMode = ref('auto') // 运行模式：auto/manual
+const simulationRounds = ref(15)   // 模拟轮数
 
 // DOM引用
 const graphContainer = ref(null)
@@ -574,6 +584,10 @@ const handleNewProject = async () => {
     return
   }
   
+  // 保存运行模式
+  simulationMode.value = pending.mode || 'auto'
+  console.log('运行模式:', simulationMode.value)
+  
   try {
     loading.value = true
     currentPhase.value = 0 // 本体生成阶段
@@ -612,7 +626,15 @@ const handleNewProject = async () => {
     }
   } catch (err) {
     console.error('Handle new project error:', err)
-    error.value = '项目初始化失败: ' + (err.message || '未知错误')
+    
+    // 识别超时错误
+    if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      error.value = '请求超时：本体生成需要较长时间，请稍后刷新页面查看进度'
+    } else if (err.message === 'Network Error') {
+      error.value = '网络错误：请检查后端服务是否运行 (http://localhost:5001)'
+    } else {
+      error.value = '项目初始化失败: ' + (err.message || '未知错误')
+    }
   } finally {
     loading.value = false
   }

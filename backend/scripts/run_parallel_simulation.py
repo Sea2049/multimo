@@ -1295,7 +1295,8 @@ async def run_reddit_simulation(
     simulation_dir: str,
     action_logger: Optional[PlatformActionLogger] = None,
     main_logger: Optional[SimulationLogManager] = None,
-    max_rounds: Optional[int] = None
+    max_rounds: Optional[int] = None,
+    resume: bool = False
 ) -> PlatformSimulation:
     """运行Reddit模拟
     
@@ -1305,6 +1306,7 @@ async def run_reddit_simulation(
         action_logger: 动作日志记录器
         main_logger: 主日志管理器
         max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
+        resume: 是否尝试恢复
         
     Returns:
         PlatformSimulation: 包含env和agent_graph的结果对象
@@ -1340,8 +1342,20 @@ async def run_reddit_simulation(
             agent_names[agent_id] = getattr(agent, 'name', f'Agent_{agent_id}')
     
     db_path = os.path.join(simulation_dir, "reddit_simulation.db")
-    if os.path.exists(db_path):
-        os.remove(db_path)
+    start_round = 0
+    
+    if resume and os.path.exists(db_path):
+        last_round = get_last_completed_round(simulation_dir, "reddit")
+        if last_round >= 0:
+            start_round = last_round + 1
+            log_info(f"检测到现有数据，将从第 {start_round} 轮继续运行")
+        else:
+            log_info("未检测到有效进度，将重新开始")
+            if os.path.exists(db_path):
+                os.remove(db_path)
+    else:
+        if os.path.exists(db_path):
+            os.remove(db_path)
     
     result.env = oasis.make(
         agent_graph=result.agent_graph,
@@ -1353,61 +1367,75 @@ async def run_reddit_simulation(
     await result.env.reset()
     log_info("环境已启动")
     
-    if action_logger:
+    if action_logger and start_round == 0:
         action_logger.log_simulation_start(config)
     
     total_actions = 0
     last_rowid = 0  # 跟踪数据库中最后处理的行号（使用 rowid 避免 created_at 格式差异）
     
-    # 执行初始事件
-    event_config = config.get("event_config", {})
-    initial_posts = event_config.get("initial_posts", [])
+    # 如果是恢复模式，需要先读取已有的 rowid，避免重复记录
+    if start_round > 0:
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAX(rowid) FROM trace")
+            row = cursor.fetchone()
+            if row and row[0]:
+                last_rowid = row[0]
+            conn.close()
+        except Exception as e:
+            log_info(f"读取现有数据库 rowid 失败: {e}")
     
-    # 记录 round 0 开始（初始事件阶段）
-    if action_logger:
-        action_logger.log_round_start(0, 0)  # round 0, simulated_hour 0
-    
-    initial_action_count = 0
-    if initial_posts:
-        initial_actions = {}
-        for post in initial_posts:
-            agent_id = post.get("poster_agent_id", 0)
-            content = post.get("content", "")
-            try:
-                agent = result.env.agent_graph.get_agent(agent_id)
-                if agent in initial_actions:
-                    if not isinstance(initial_actions[agent], list):
-                        initial_actions[agent] = [initial_actions[agent]]
-                    initial_actions[agent].append(ManualAction(
-                        action_type=ActionType.CREATE_POST,
-                        action_args={"content": content}
-                    ))
-                else:
-                    initial_actions[agent] = ManualAction(
-                        action_type=ActionType.CREATE_POST,
-                        action_args={"content": content}
-                    )
-                
-                if action_logger:
-                    action_logger.log_action(
-                        round_num=0,
-                        agent_id=agent_id,
-                        agent_name=agent_names.get(agent_id, f"Agent_{agent_id}"),
-                        action_type="CREATE_POST",
-                        action_args={"content": content}
-                    )
-                    total_actions += 1
-                    initial_action_count += 1
-            except Exception:
-                pass
+    # 执行初始事件（仅在第0轮执行）
+    if start_round == 0:
+        event_config = config.get("event_config", {})
+        initial_posts = event_config.get("initial_posts", [])
         
-        if initial_actions:
-            await result.env.step(initial_actions)
-            log_info(f"已发布 {len(initial_actions)} 条初始帖子")
-    
-    # 记录 round 0 结束
-    if action_logger:
-        action_logger.log_round_end(0, initial_action_count)
+        # 记录 round 0 开始（初始事件阶段）
+        if action_logger:
+            action_logger.log_round_start(0, 0)  # round 0, simulated_hour 0
+        
+        initial_action_count = 0
+        if initial_posts:
+            initial_actions = {}
+            for post in initial_posts:
+                agent_id = post.get("poster_agent_id", 0)
+                content = post.get("content", "")
+                try:
+                    agent = result.env.agent_graph.get_agent(agent_id)
+                    if agent in initial_actions:
+                        if not isinstance(initial_actions[agent], list):
+                            initial_actions[agent] = [initial_actions[agent]]
+                        initial_actions[agent].append(ManualAction(
+                            action_type=ActionType.CREATE_POST,
+                            action_args={"content": content}
+                        ))
+                    else:
+                        initial_actions[agent] = ManualAction(
+                            action_type=ActionType.CREATE_POST,
+                            action_args={"content": content}
+                        )
+                    
+                    if action_logger:
+                        action_logger.log_action(
+                            round_num=0,
+                            agent_id=agent_id,
+                            agent_name=agent_names.get(agent_id, f"Agent_{agent_id}"),
+                            action_type="CREATE_POST",
+                            action_args={"content": content}
+                        )
+                        total_actions += 1
+                        initial_action_count += 1
+                except Exception:
+                    pass
+            
+            if initial_actions:
+                await result.env.step(initial_actions)
+                log_info(f"已发布 {len(initial_actions)} 条初始帖子")
+        
+        # 记录 round 0 结束
+        if action_logger:
+            action_logger.log_round_end(0, initial_action_count)
     
     # 主模拟循环
     time_config = config.get("time_config", {})
@@ -1424,7 +1452,7 @@ async def run_reddit_simulation(
     
     start_time = datetime.now()
     
-    for round_num in range(total_rounds):
+    for round_num in range(start_round, total_rounds):
         # 检查是否收到退出信号
         if _shutdown_event and _shutdown_event.is_set():
             if main_logger:
@@ -1518,6 +1546,12 @@ async def main():
         action='store_true',
         default=False,
         help='模拟完成后立即关闭环境，不进入等待命令模式'
+    )
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        default=False,
+        help='尝试从上次中断的轮次继续运行（不删除现有数据库）'
     )
     
     args = parser.parse_args()

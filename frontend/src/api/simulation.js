@@ -41,6 +41,14 @@ export const stopSimulation = (data) => {
 }
 
 /**
+ * 检查模拟是否可以恢复
+ * @param {string} simulationId
+ */
+export const checkResumable = (simulationId) => {
+  return requestWithRetry(() => service.get(`/api/simulation/${simulationId}/resumable`), 3, 1000)
+}
+
+/**
  * 获取运行状态
  * @param {string} simulationId
  */

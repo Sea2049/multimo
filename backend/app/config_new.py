@@ -43,7 +43,7 @@ class AppConfig(BaseSettings):
     LLM_MODEL_NAME: str = "gpt-4o-mini"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
-    LLM_TIMEOUT: int = 60
+    LLM_TIMEOUT: int = 300  # LLM 调用超时（秒），默认 5 分钟
     
     # 存储配置
     STORAGE_TYPE: str = "memory"  # 可选: memory, database

@@ -68,3 +68,22 @@ export function getProject(projectId) {
     method: 'get'
   })
 }
+
+/**
+ * 向现有项目添加文档
+ * @param {String} projectId - 项目ID
+ * @param {FormData} formData - 包含files的FormData
+ * @returns {Promise}
+ */
+export function addDocuments(projectId, formData) {
+  return requestWithRetry(() =>
+    service({
+      url: `/api/graph/project/${projectId}/documents/add`,
+      method: 'post',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+  )
+}
