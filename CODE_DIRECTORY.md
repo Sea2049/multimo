@@ -7,6 +7,9 @@ multimo/
 ├── .env                    # 环境变量配置文件（包含 API 密钥等敏感信息）
 ├── .env.example            # 环境变量示例文件（用于参考）
 ├── .gitignore              # Git 忽略文件配置
+├── .github/                # GitHub 配置
+│   └── workflows/          # CI/CD 工作流
+│       └── ci.yml          # 持续集成配置
 ├── ARCHITECTURE.md         # 架构文档
 ├── API.md                  # API 文档
 ├── CODE_DIRECTORY.md       # 代码目录文档（本文件）
@@ -21,6 +24,7 @@ multimo/
 ├── REFACTORING_PLAN.md     # 重构计划文档
 ├── REFACTORING_STATUS.md   # 重构状态文档
 ├── REPORT_MODULE_TEST_REPORT.md  # 报告模块测试报告
+├── TESTING.md              # 测试文档
 ├── replication_log.md      # 项目复制日志
 ├── static/                 # 静态资源目录
 │   └── image/              # 图片资源
@@ -31,8 +35,8 @@ multimo/
 │       │   ├── 运行截图4.png
 │       │   ├── 运行截图5.png
 │       │   └── 运行截图6.png
-│       ├── Multimo_logo.jpeg          # Multimo Logo
-│       ├── Multimo_logo_compressed.jpeg  # 压缩版 Logo
+│       ├── MiroFish_logo.jpeg          # MiroFish Logo
+│       ├── MiroFish_logo_compressed.jpeg  # 压缩版 Logo
 │       ├── shanda_logo.png              # 盛大集团 Logo
 │       ├── QQ群.png                     # QQ 交流群二维码
 │       └── 武大模拟演示封面.png         # 演示视频封面
@@ -107,13 +111,32 @@ backend/app/api/
 - GET /api/v1/graph/relationships - 获取关系列表
 
 **backend/app/api/v1/simulation.py**
-- POST /api/v1/simulation/config - 生成模拟配置
+- POST /api/v1/simulation/create - 创建模拟
+- POST /api/v1/simulation/prepare - 准备模拟环境
+- POST /api/v1/simulation/prepare/status - 获取准备状态
+- GET /api/v1/simulation/<id>/config - 获取模拟配置
+- GET /api/v1/simulation/<id>/config/realtime - 实时配置状态
+- GET /api/v1/simulation/<id>/profiles/realtime - 实时人设生成进度
 - POST /api/v1/simulation/start - 启动模拟
-- GET /api/v1/simulation/status - 获取模拟状态
 - POST /api/v1/simulation/stop - 停止模拟
+- GET /api/v1/simulation/status - 获取模拟状态
+- GET /api/v1/simulation/<id>/run-status - 获取运行状态
+- GET /api/v1/simulation/<id>/run-status/detail - 获取运行状态详情
+- POST /api/v1/simulation/env-status - 获取环境状态
+- POST /api/v1/simulation/close-env - 关闭模拟环境
+- POST /api/v1/simulation/<id>/interview/batch - 批量采访智能体
 - GET /api/v1/simulation/logs - 获取模拟日志
-- POST /api/v1/simulation/chat - 与智能体对话
 - GET /api/v1/simulation/history - 获取历史模拟
+- GET /api/v1/simulation/<id> - 获取模拟信息
+- GET /api/v1/simulation/<id>/export - 导出模拟数据
+- 自动驾驶模式接口：
+  - POST /api/v1/simulation/auto-pilot/config - 配置自动驾驶模式
+  - POST /api/v1/simulation/auto-pilot/start - 启动自动驾驶
+  - POST /api/v1/simulation/auto-pilot/pause - 暂停自动驾驶
+  - POST /api/v1/simulation/auto-pilot/resume - 恢复自动驾驶
+  - POST /api/v1/simulation/auto-pilot/stop - 停止自动驾驶
+  - GET /api/v1/simulation/auto-pilot/status - 获取自动驾驶状态
+  - POST /api/v1/simulation/auto-pilot/reset - 重置自动驾驶状态
 
 **backend/app/api/v1/report.py**
 - POST /api/v1/report/generate - 生成报告
@@ -154,20 +177,27 @@ backend/app/models/
 ```
 backend/app/services/
 ├── __init__.py
-├── export_service.py              # 导出服务（导出图谱、报告等）
-├── graph_builder.py               # 图谱构建服务（构建知识图谱）
-├── oasis_profile_generator.py     # OASIS 人设生成器
-├── ontology_generator.py          # 本体生成器
-├── report_agent.py                # 报告智能体（生成预测报告）
-├── simulation_config_generator.py # 模拟配置生成器
-├── simulation_ipc.py              # 模拟进程间通信
-├── simulation_manager.py          # 模拟管理器（管理模拟生命周期）
-├── simulation_runner.py           # 模拟运行器（执行模拟任务）
-├── text_processor.py              # 文本处理服务（文件解析、文本提取）
-├── zep_entity_reader.py           # Zep 实体读取器
-├── zep_graph_memory_updater.py    # Zep 图谱记忆更新器
-└── zep_tools.py                   # Zep 工具函数
+├── auto_pilot_manager.py       # 自动驾驶管理器
+├── export_service.py           # 导出服务（导出图谱、报告等）
+├── graph_builder.py            # 图谱构建服务（构建知识图谱）
+├── oasis_profile_generator.py  # OASIS 人设生成器
+├── ontology_generator.py       # 本体生成器
+├── report_agent.py             # 报告智能体（生成预测报告）
+├── simulation_config_generator.py  # 模拟配置生成器
+├── simulation_ipc.py           # 模拟进程间通信
+├── simulation_manager.py       # 模拟管理器（管理模拟生命周期）
+├── simulation_runner.py        # 模拟运行器（执行模拟任务）
+├── text_processor.py           # 文本处理服务（文件解析、文本提取）
+├── zep_entity_reader.py        # Zep 实体读取器
+├── zep_graph_memory_updater.py # Zep 图谱记忆更新器
+└── zep_tools.py                # Zep 工具函数
 ```
+
+**backend/app/services/auto_pilot_manager.py**
+- 自动驾驶模式核心管理器
+- 自动执行准备、启动、监控、报告生成流程
+- 支持暂停、恢复、停止操作
+- 状态持久化支持断点续传
 
 **backend/app/services/export_service.py**
 - 提供图谱数据导出功能
@@ -480,7 +510,40 @@ backend/scripts/
 - 验证人设配置
 - 检查人设完整性
 
-### 2.3 数据目录 (backend/uploads/)
+### 2.3 测试目录 (backend/tests/)
+
+```
+backend/tests/
+├── __init__.py
+├── conftest.py              # Pytest 配置文件
+├── test_graph_module.py     # 图谱模块测试
+├── test_report_module.py    # 报告模块测试
+└── test_simulation_runner.py # 模拟运行器测试
+```
+
+**backend/tests/conftest.py**
+- Pytest 测试配置
+- 设置测试环境路径
+
+**backend/tests/test_graph_module.py**
+- 图谱模块单元测试
+- 测试实体提取功能
+- 测试关系抽取功能
+- 测试图谱构建功能
+
+**backend/tests/test_report_module.py**
+- 报告模块单元测试
+- 测试数据分析器功能
+- 测试报告生成器功能
+- 测试 Markdown 转换功能
+
+**backend/tests/test_simulation_runner.py**
+- 模拟运行器单元测试
+- 测试模拟启动和停止
+- 测试运行状态管理
+- 使用 unittest 和 mock 进行测试
+
+### 2.4 数据目录 (backend/uploads/)
 
 ```
 backend/uploads/
@@ -514,19 +577,11 @@ backend/uploads/
         └── section_*.md # 分节报告
 ```
 
-### 2.4 日志目录 (backend/logs/)
+### 2.5 日志目录 (backend/logs/)
 
 ```
 backend/logs/
 └── 2026-01-*.log         # 按日期分类的日志文件
-```
-
-### 2.5 测试目录 (backend/tests/)
-
-```
-backend/tests/
-├── __init__.py
-└── test_graph_module.py   # 图谱模块测试
 ```
 
 ### 2.6 配置文件
@@ -561,6 +616,11 @@ backend/tests/
 - uv 包管理器锁文件
 - 确保依赖版本一致性
 
+**backend/Dockerfile**
+- Docker 容器化部署配置
+- 基于 Python 3.12-slim 镜像
+- 安装依赖并启动服务
+
 ## 3. 前端目录结构 (frontend/)
 
 ### 3.1 公共资源 (frontend/public/)
@@ -581,7 +641,8 @@ frontend/src/
 ├── components/            # Vue 组件
 ├── router/                # 路由配置
 ├── store/                 # 状态管理
-└── views/                 # 页面视图
+├── views/                 # 页面视图
+└── __tests__/             # 测试文件
 ```
 
 #### 3.2.1 应用入口
@@ -611,6 +672,7 @@ frontend/src/api/
 - 配置基础 URL（http://localhost:5001）
 - 配置请求/响应拦截器
 - 统一错误处理
+- 实现 requestWithRetry 统一重试机制
 
 **frontend/src/api/graph.js**
 - 封装图谱相关 API 调用
@@ -621,11 +683,19 @@ frontend/src/api/
 
 **frontend/src/api/simulation.js**
 - 封装模拟相关 API 调用
-- 生成模拟配置
-- 启动/停止模拟
-- 获取模拟状态
-- 获取模拟日志
-- 与智能体对话
+- 创建模拟：createSimulation
+- 准备模拟环境：prepareSimulation
+- 获取准备状态：getPrepareStatus
+- 启动/停止模拟：startSimulation, stopSimulation
+- 获取运行状态：getRunStatus, getRunStatusDetail
+- 获取模拟信息：getSimulation
+- 获取模拟配置：getSimulationConfig
+- 获取实时配置状态：getSimulationConfigRealtime
+- 获取实时人设进度：getSimulationProfilesRealtime
+- 批量采访智能体：interviewAgents
+- 获取/关闭环境状态：getEnvStatus, closeSimulationEnv
+- 获取模拟历史：getSimulationHistory
+- 导出模拟数据：exportSimulationData
 
 **frontend/src/api/report.js**
 - 封装报告相关 API 调用
@@ -639,8 +709,8 @@ frontend/src/api/
 ```
 frontend/src/assets/
 └── logo/                  # Logo 图片
-    ├── Multimo_logo_left.jpeg
-    └── Multimo_logo_compressed.jpeg
+    ├── MiroFish_logo_left.jpeg
+    └── MiroFish_logo_compressed.jpeg
 ```
 
 #### 3.2.4 Vue 组件 (frontend/src/components/)
@@ -767,6 +837,13 @@ frontend/src/views/
 - 报告内容渲染
 - 报告导出
 
+#### 3.2.8 测试文件 (frontend/src/__tests__/)
+
+```
+frontend/src/__tests__/
+└── example.spec.js        # 示例测试文件（Vitest）
+```
+
 ### 3.3 配置文件
 
 **frontend/.gitignore**
@@ -784,6 +861,9 @@ frontend/src/views/
   - vue-router: ^4.6.3
   - axios: ^1.13.2
   - d3: ^7.9.0
+  - vite: ^7.2.4
+  - @vitejs/plugin-vue: ^6.0.1
+  - vitest: ^3.0.0
 
 **frontend/package-lock.json**
 - 前端依赖锁定文件
@@ -793,6 +873,11 @@ frontend/src/views/
 - 开发服务器配置
 - 插件配置
 - 路径别名配置
+
+**frontend/Dockerfile**
+- Docker 容器化部署配置
+- 基于 node:18-alpine 镜像
+- 构建并运行前端应用
 
 ## 4. 依赖说明
 
@@ -821,6 +906,10 @@ python-dotenv>=1.0.0      # 环境变量管理
 pydantic>=2.0.0           # 数据验证
 pydantic-settings>=2.0.0  # Pydantic 配置
 email-validator>=2.0.0     # 邮箱验证
+
+# 测试框架
+pytest>=8.0.0             # 测试框架
+pytest-cov>=4.0.0         # 代码覆盖率
 ```
 
 ### 4.2 前端依赖 (frontend/package.json)
@@ -835,7 +924,8 @@ email-validator>=2.0.0     # 邮箱验证
   },
   "devDependencies": {
     "vite": "^7.2.4",            // 构建工具
-    "@vitejs/plugin-vue": "^6.0.1"  // Vue 插件
+    "@vitejs/plugin-vue": "^6.0.1",  // Vue 插件
+    "vitest": "^3.0.0"           // 测试框架
   }
 }
 ```
@@ -846,6 +936,13 @@ email-validator>=2.0.0     # 邮箱验证
 {
   "devDependencies": {
     "concurrently": "^9.1.2"      // 进程并发管理
+  },
+  "scripts": {
+    "setup": "npm install && cd frontend && npm install",
+    "setup:all": "npm install && cd frontend && npm install && cd ../backend && uv pip install -r requirements.txt",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && python run.py",
+    "frontend": "cd frontend && npm run dev"
   }
 }
 ```
@@ -893,6 +990,57 @@ email-validator>=2.0.0     # 邮箱验证
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.3.0 (2026-01-20)
+
+**重大更新：**
+- 🚗 新增自动驾驶模式 (Auto-Pilot Mode)
+- ☁️ 支持云端无人值守自动运行
+- 🔄 支持断点续传，失败自动重试
+- 📊 完整流程自动化：准备 -> 启动 -> 监控 -> 报告
+- 🚀 新增模拟创建和准备功能：POST /api/simulation/create, prepare, prepare/status
+- 🚀 新增实时状态查询：config/realtime, profiles/realtime, run-status/detail
+- 🚀 新增批量采访智能体功能：POST /api/simulation/{id}/interview/batch
+- 🚀 新增环境管理功能：env-status, close-env
+- ⚡ 前端 simulation.js API 客户端重构，新增 requestWithRetry 统一重试机制
+- ✅ 完善测试用例覆盖
+
+**功能特性：**
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 自动准备：读取实体、生成Profile、生成配置
+- ✅ 自动启动：自动启动模拟运行
+- ✅ 自动监控：实时监控运行状态，自动处理异常
+- ✅ 自动报告：模拟完成后自动生成报告
+- ✅ 暂停/恢复功能：随时可暂停、恢复自动驾驶
+- ✅ 状态持久化：支持服务重启后断点续传
+
+**API 新增接口：**
+- `POST /api/simulation/create` - 创建模拟
+- `POST /api/simulation/prepare` - 准备模拟环境
+- `POST /api/simulation/prepare/status` - 获取准备状态
+- `GET /api/simulation/{id}/config/realtime` - 实时配置状态
+- `GET /api/simulation/{id}/profiles/realtime` - 实时人设生成进度
+- `GET /api/simulation/{id}/run-status/detail` - 运行状态详情
+- `POST /api/simulation/{id}/interview/batch` - 批量采访智能体
+- `POST /api/simulation/env-status` - 获取环境状态
+- `POST /api/simulation/close-env` - 关闭模拟环境
+- `POST /api/simulation/auto-pilot/config` - 配置自动驾驶模式
+- `POST /api/simulation/auto-pilot/start` - 启动自动驾驶
+- `POST /api/simulation/auto-pilot/pause` - 暂停自动驾驶
+- `POST /api/simulation/auto-pilot/resume` - 恢复自动驾驶
+- `POST /api/simulation/auto-pilot/stop` - 停止自动驾驶
+- `GET /api/simulation/auto-pilot/status` - 获取自动驾驶状态
+- `POST /api/simulation/auto-pilot/reset` - 重置自动驾驶状态
+
+**新增文件：**
+- `backend/app/services/auto_pilot_manager.py` - 自动驾驶核心服务
+- `backend/tests/conftest.py` - Pytest 配置文件
+- `backend/tests/test_report_module.py` - 报告模块测试
+- `backend/tests/test_simulation_runner.py` - 模拟运行器测试
+- `frontend/src/__tests__/example.spec.js` - 前端示例测试
+
+**文件变更：**
+- Logo 文件名从 Multimo_logo 改为 MiroFish_logo
 
 ### v1.2.0 (2026-01-20)
 

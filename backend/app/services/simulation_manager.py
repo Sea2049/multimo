@@ -41,7 +41,18 @@ class PlatformType(str, Enum):
 
 @dataclass
 class SimulationState:
-    """模拟状态"""
+    """
+    模拟状态数据类
+    
+    记录模拟的完整状态信息，包括：
+    - 基本信息：模拟ID、项目ID、图谱ID
+    - 平台配置：Twitter/Reddit 启用状态
+    - 准备阶段数据：实体数量、Profile数量、实体类型
+    - 配置生成信息：是否已生成、配置推理
+    - 运行时数据：当前轮次、平台状态
+    - 时间戳：创建时间、更新时间
+    - 自动驾驶模式相关字段
+    """
     simulation_id: str
     project_id: str
     graph_id: str
@@ -74,6 +85,18 @@ class SimulationState:
     # 错误信息
     error: Optional[str] = None
     
+    # ========== 自动驾驶模式相关字段 ==========
+    # 是否启用自动驾驶模式
+    auto_pilot_enabled: bool = False
+    # 自动驾驶当前步骤
+    auto_pilot_step: str = ""
+    # 自动驾驶步骤进度
+    auto_pilot_progress: int = 0
+    # 自动驾驶启动时间
+    auto_pilot_started_at: Optional[str] = None
+    # 自动驾驶完成时间
+    auto_pilot_completed_at: Optional[str] = None
+    
     def to_dict(self) -> Dict[str, Any]:
         """完整状态字典（内部使用）"""
         return {
@@ -94,6 +117,12 @@ class SimulationState:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "error": self.error,
+            # 自动驾驶模式相关字段
+            "auto_pilot_enabled": self.auto_pilot_enabled,
+            "auto_pilot_step": self.auto_pilot_step,
+            "auto_pilot_progress": self.auto_pilot_progress,
+            "auto_pilot_started_at": self.auto_pilot_started_at,
+            "auto_pilot_completed_at": self.auto_pilot_completed_at,
         }
     
     def to_simple_dict(self) -> Dict[str, Any]:
@@ -108,6 +137,9 @@ class SimulationState:
             "entity_types": self.entity_types,
             "config_generated": self.config_generated,
             "error": self.error,
+            "auto_pilot_enabled": self.auto_pilot_enabled,
+            "auto_pilot_step": self.auto_pilot_step,
+            "auto_pilot_progress": self.auto_pilot_progress,
         }
 
 
@@ -185,6 +217,12 @@ class SimulationManager:
             created_at=data.get("created_at", datetime.now().isoformat()),
             updated_at=data.get("updated_at", datetime.now().isoformat()),
             error=data.get("error"),
+            # 自动驾驶模式相关字段
+            auto_pilot_enabled=data.get("auto_pilot_enabled", False),
+            auto_pilot_step=data.get("auto_pilot_step", ""),
+            auto_pilot_progress=data.get("auto_pilot_progress", 0),
+            auto_pilot_started_at=data.get("auto_pilot_started_at"),
+            auto_pilot_completed_at=data.get("auto_pilot_completed_at"),
         )
         
         self._simulations[simulation_id] = state

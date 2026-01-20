@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./static/image/Multimo_logo_compressed.jpeg" alt="Multimo Logo" width="75%"/>
+<img src="./static/image/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="75%"/>
 
 简洁通用的群体智能引擎，预测万物
 </br>
@@ -14,7 +14,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/blob/main/LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/Multimo)
-[![Version](https://img.shields.io/badge/version-v1.2.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
+[![Version](https://img.shields.io/badge/version-v1.3.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -156,6 +156,7 @@ Multimo/
 │   │   ├── storage/        # 存储层
 │   │   └── utils/          # 工具函数层
 │   ├── scripts/            # 脚本目录
+│   ├── tests/              # 测试目录
 │   ├── uploads/            # 上传文件目录
 │   └── logs/               # 日志目录
 ├── frontend/                # 前端 Vue.js 应用
@@ -163,13 +164,16 @@ Multimo/
 │   │   ├── api/            # API 客户端
 │   │   ├── components/     # Vue 组件
 │   │   ├── views/          # 页面视图
-│   │   └── router/         # 路由配置
+│   │   ├── router/         # 路由配置
+│   │   ├── store/          # 状态管理
+│   │   └── __tests__/      # 测试文件
 │   └── public/             # 公共静态资源
 ├── static/                  # 静态资源（图片等）
 ├── FRAMEWORK.md             # 框架架构文档
 ├── CODE_DIRECTORY.md        # 代码目录文档
 ├── README.md                # 中文说明文档（本文件）
-└── README-EN.md             # 英文说明文档
+├── README-EN.md             # 英文说明文档
+└── TESTING.md               # 测试文档
 ```
 
 详细的目录结构和文件说明请参考：
@@ -189,6 +193,7 @@ Multimo/
 | **CAMEL-OASIS** | 0.2.5 | 社交模拟引擎（Apache 2.0 开源） |
 | **PyMuPDF** | 1.24.0+ | PDF 解析 |
 | **Pydantic** | 2.0+ | 数据验证 |
+| **Pytest** | 8.0+ | 单元测试框架 |
 
 ### 前端技术
 
@@ -199,6 +204,7 @@ Multimo/
 | **Axios** | 1.13.2 | HTTP 客户端 |
 | **D3.js** | 7.9.0 | 图谱可视化 |
 | **Vite** | 7.2.4 | 构建工具 |
+| **Vitest** | 3.0.0 | 测试框架 |
 
 ## 📖 文档
 
@@ -207,6 +213,7 @@ Multimo/
 - **[架构文档](./ARCHITECTURE.md)** - 系统架构设计和技术实现细节
 - **[API 文档](./API.md)** - REST API 端点说明和使用示例
 - **[开发指南](./DEVELOPMENT.md)** - 开发环境搭建和开发规范
+- **[测试文档](./TESTING.md)** - 测试指南和用例说明
 
 ## 🏗️ 架构设计
 
@@ -236,6 +243,11 @@ Multimo 采用模块化架构设计，核心模块包括：
 - **系统对话**：与 ReportAgent 深度交互
 - **动态变量注入**：实时修改模拟参数
 
+#### 5. 自动驾驶模块 ([`backend/app/services/auto_pilot_manager.py`](backend/app/services/auto_pilot_manager.py))
+- **自动驾驶管理器**：实现全自动化的模拟流程
+- **状态管理**：支持暂停、恢复、停止操作
+- **断点续传**：服务重启后可继续执行
+
 ### 技术特性
 
 - ✅ **前后端分离**：Vue.js + Flask 架构
@@ -245,6 +257,35 @@ Multimo 采用模块化架构设计，核心模块包括：
 - ✅ **开源框架**：集成 Apache 2.0 开源的 OASIS 框架
 - ✅ **多 LLM 支持**：支持 OpenAI SDK 格式的任意 LLM
 - ✅ **双平台并行**：Twitter 和 Reddit 同时模拟
+- ✅ **自动驾驶模式**：支持无人值守自动运行
+- ✅ **完整测试覆盖**：Pytest + Vitest 双重测试保障
+
+## 🧪 测试框架
+
+### 后端测试
+
+```bash
+# 运行后端测试
+cd backend
+pytest tests/ -v
+```
+
+**测试文件：**
+- `backend/tests/conftest.py` - Pytest 配置文件
+- `backend/tests/test_graph_module.py` - 图谱模块测试
+- `backend/tests/test_report_module.py` - 报告模块测试
+- `backend/tests/test_simulation_runner.py` - 模拟运行器测试
+
+### 前端测试
+
+```bash
+# 运行前端测试
+cd frontend
+npm run test
+```
+
+**测试文件：**
+- `frontend/src/__tests__/example.spec.js` - 示例测试
 
 ## 🤝 贡献指南
 
@@ -291,6 +332,63 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 
 ## 📝 更新日志
 
+### v1.3.0 (2026-01-20)
+
+**功能更新：**
+- 🚀 新增模拟创建功能：POST /api/simulation/create
+- 🚀 新增准备模拟环境功能：POST /api/simulation/prepare
+- 🚀 新增获取准备状态功能：POST /api/simulation/prepare/status
+- 🚀 新增实时配置状态查询：GET /api/simulation/{id}/config/realtime
+- 🚀 新增实时人设生成进度：GET /api/simulation/{id}/profiles/realtime
+- 🚀 新增批量采访智能体功能：POST /api/simulation/{id}/interview/batch
+- 🚀 新增环境状态查询：POST /api/simulation/env-status
+- 🚀 新增关闭模拟环境功能：POST /api/simulation/close-env
+- 🚀 新增运行状态详情查询：GET /api/simulation/{id}/run-status/detail
+
+**代码改进：**
+- ⚡ 前端 simulation.js API 客户端重构
+- ⚡ 新增 requestWithRetry 统一重试机制
+- ⚡ 完善测试用例覆盖
+
+**新增文件：**
+- `backend/tests/conftest.py` - Pytest 配置文件
+- `backend/tests/test_report_module.py` - 报告模块测试
+- `backend/tests/test_simulation_runner.py` - 模拟运行器测试
+- `frontend/src/__tests__/example.spec.js` - 前端示例测试
+- `TESTING.md` - 测试文档
+
+**文件变更：**
+- Logo 文件名从 Multimo_logo 改为 MiroFish_logo
+
+### v1.3.0 (2026-01-20)
+
+**重大更新：**
+- 🚗 新增自动驾驶模式 (Auto-Pilot Mode)
+- ☁️ 支持云端无人值守自动运行
+- 🔄 支持断点续传，失败自动重试
+- 📊 完整流程自动化：准备 -> 启动 -> 监控 -> 报告
+
+**功能特性：**
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 自动准备：读取实体、生成Profile、生成配置
+- ✅ 自动启动：自动启动模拟运行
+- ✅ 自动监控：实时监控运行状态，自动处理异常
+- ✅ 自动报告：模拟完成后自动生成报告
+- ✅ 暂停/恢复功能：随时可暂停、恢复自动驾驶
+- ✅ 状态持久化：支持服务重启后断点续传
+
+**API 新增接口：**
+- `POST /api/simulation/auto-pilot/config` - 配置自动驾驶模式
+- `POST /api/simulation/auto-pilot/start` - 启动自动驾驶
+- `POST /api/simulation/auto-pilot/pause` - 暂停自动驾驶
+- `POST /api/simulation/auto-pilot/resume` - 恢复自动驾驶
+- `POST /api/simulation/auto-pilot/stop` - 停止自动驾驶
+- `GET /api/simulation/auto-pilot/status` - 获取自动驾驶状态
+- `POST /api/simulation/auto-pilot/reset` - 重置自动驾驶状态
+
+**新增文件：**
+- `backend/app/services/auto_pilot_manager.py` - 自动驾驶核心服务
+
 ### v1.2.0 (2026-01-20)
 
 **重大更新：**
@@ -318,19 +416,6 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 - Docker 容器化部署
 - 完整的单元测试覆盖
 
-### v1.0.1 (2026-01-20)
-
-**功能更新：**
-- 图谱获取功能：添加 GET /api/v1/graph/<graph_id> 接口
-- 图谱导出功能：添加 GET /api/v1/graph/<graph_id>/export 接口
-- 图谱构建功能：添加 POST /api/v1/graph/build 接口
-- 集成 SimulationManager 进行图谱文件管理和路径解析
-
-**代码改进：**
-- 优化图谱存储路径，支持模拟目录和独立图谱目录两种存储方式
-- 添加完整的错误处理和日志记录
-- 保持与现有 API 的一致性设计
-
 ### v1.0.0 (2026-01-20)
 
 **重大更新：**
@@ -352,16 +437,6 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 - 集成 Zep Cloud 长期记忆
 - 集成 OASIS 社交模拟引擎（Apache 2.0）
 - 支持 OpenAI SDK 格式的任意 LLM
-
-**主要特性：**
-- 上传种子材料并构建知识图谱
-- 自动生成智能体人设
-- 双平台并行模拟（Twitter + Reddit）
-- 自动生成预测报告
-- 与模拟智能体深度交互
-- 完整的项目文档和代码注释
-- 重构后的清晰架构设计
-- 可扩展的模块化设计
 
 ## 🔗 相关链接
 
