@@ -6,8 +6,6 @@
 </br>
 <em>A Simple and Universal Swarm Intelligence Engine, Predicting Anything</em>
 
-<a href="https://www.shanda.com/" target="_blank"><img src="./static/image/shanda_logo.png" alt="Multimo | Shanda" height="40"/>
-
 [![GitHub Stars](https://img.shields.io/github/stars/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/stargazers)
 [![GitHub Watchers](https://img.shields.io/github/watchers/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/watchers)
 [![GitHub Forks](https://img.shields.io/github/forks/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/network)
@@ -275,11 +273,7 @@ Multimo 采用模块化架构设计，核心模块包括：
 
 &nbsp;
 
-Multimo团队长期招募全职/实习，如果你对多Agent应用感兴趣，欢迎投递简历至：**multimo@shanda.com**
-
 ## 📄 致谢
-
-**Multimo 得到了盛大集团的战略支持和孵化！**
 
 Multimo 的仿真引擎由 **[OASIS](https://github.com/camel-ai/oasis)** 驱动，我们衷心感谢 CAMEL-AI 团队的开源贡献！
 
@@ -378,7 +372,6 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 ## 🔗 相关链接
 
 - [GitHub 仓库](https://github.com/666ghj/Multimo)
-- [盛大集团](https://www.shanda.com/)
 - [OASIS 框架](https://github.com/camel-ai/oasis)
 - [CAMEL-AI](https://github.com/camel-ai/camel)
 
