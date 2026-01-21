@@ -401,13 +401,13 @@ npm run build
 
 ```bash
 # 构建镜像
-docker build -t mirofish:latest .
+docker build -t multimo:latest .
 
 # 运行容器
 docker run -d -p 3000:3000 -p 5001:5001 \
   -e LLM_API_KEY=your_key \
   -e ZEP_API_KEY=your_key \
-  mirofish:latest
+  multimo:latest
 ```
 
 ## 9. 贡献指南

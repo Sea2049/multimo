@@ -29,7 +29,7 @@ class AppConfig(BaseSettings):
     """
     
     # Flask 配置
-    SECRET_KEY: str = "mirofish-secret-key"
+    SECRET_KEY: str = "multimo-secret-key"
     DEBUG: bool = True
     HOST: str = "0.0.0.0"
     PORT: int = 5001
@@ -45,10 +45,14 @@ class AppConfig(BaseSettings):
     LLM_MAX_TOKENS: int = 2000
     LLM_TIMEOUT: int = 300  # LLM 调用超时（秒），默认 5 分钟
     
+    # Zep 图谱服务配置（使用专用的 Zep Cloud API Key）
+    ZEP_API_KEY: Optional[str] = None
+    
     # 存储配置
     STORAGE_TYPE: str = "memory"  # 可选: memory, database
     DATABASE_URL: Optional[str] = None
     DATABASE_PATH: str = "storage.db"
+    TASKS_DATABASE_PATH: str = str(project_root / "backend" / "tasks.db")
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
@@ -88,12 +92,44 @@ class AppConfig(BaseSettings):
     # CORS 配置
     CORS_ORIGINS: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
     CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_MAX_AGE: int = 3600  # 预检请求缓存时间（秒）
     
     # 安全配置
     MAX_REQUEST_SIZE: int = 100 * 1024 * 1024  # 100MB
     SESSION_COOKIE_SECURE: bool = False  # 生产环境应设为 True
     SESSION_COOKIE_HTTPONLY: bool = True
     SESSION_COOKIE_SAMESITE: str = "Lax"
+    
+    # API Key 认证配置
+    API_KEY_ENABLED: bool = False  # 是否启用 API Key 认证（默认关闭以保持向后兼容）
+    API_KEYS: list = []  # API Key 配置列表 [{"id": "key1", "key": "xxx", "name": "Name", "permissions": []}]
+    API_KEY_HEADER: str = "X-API-Key"  # API Key 请求头名称
+    
+    # 请求签名配置（用于高安全场景）
+    SIGNATURE_ENABLED: bool = False  # 是否启用请求签名验证
+    SIGNATURE_SECRET: str = "your-signature-secret-key"  # 签名密钥
+    SIGNATURE_MAX_AGE: int = 300  # 签名有效期（秒）
+    
+    # 限流配置
+    RATE_LIMIT_ENABLED: bool = True  # 是否启用请求限流
+    RATE_LIMIT_STORAGE: str = "memory"  # 限流存储类型（memory/redis）
+    RATE_LIMIT_REDIS_URL: Optional[str] = None  # Redis 连接 URL（可选）
+    RATE_LIMIT_STRATEGY: str = "moving-window"  # 限流策略
+    
+    # 限流策略配置
+    RATE_LIMIT_DEFAULT: str = "200/hour"  # 默认限流策略
+    RATE_LIMIT_UPLOAD: str = "5/minute"  # 文件上传端点限流
+    RATE_LIMIT_QUERY: str = "100/minute"  # 查询端点限流
+    RATE_LIMIT_LLM: str = "10/hour"  # LLM 调用端点限流（本体生成、报告生成等）
+    RATE_LIMIT_SIMULATION: str = "3/hour"  # 模拟运行端点限流
+    
+    # 安全响应头配置
+    SECURITY_HEADERS_ENABLED: bool = True  # 是否启用安全响应头
+    X_CONTENT_TYPE_OPTIONS: str = "nosniff"
+    X_FRAME_OPTIONS: str = "DENY"
+    X_XSS_PROTECTION: str = "1; mode=block"
+    REFERRER_POLICY: str = "strict-origin-when-cross-origin"
+    CONTENT_SECURITY_POLICY: str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.openai.com https://*.openai.azure.com;"
     
     class Config:
         """Pydantic 配置"""
@@ -112,7 +148,8 @@ class AppConfig(BaseSettings):
         directories = [
             self.UPLOAD_FOLDER,
             self.SIMULATION_DATA_DIR,
-            self.LOG_DIR
+            self.LOG_DIR,
+            str(Path(self.TASKS_DATABASE_PATH).parent)
         ]
         
         for directory in directories:
@@ -178,8 +215,41 @@ class AppConfig(BaseSettings):
         return {
             "origins": self.CORS_ORIGINS,
             "allow_credentials": self.CORS_ALLOW_CREDENTIALS,
+            "max_age": self.CORS_MAX_AGE,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "headers": ["Content-Type", "Authorization"]
+            "headers": ["Content-Type", "Authorization", "X-API-Key"]
+        }
+    
+    def get_security_headers(self) -> dict:
+        """获取安全响应头配置
+        
+        Returns:
+            安全响应头字典
+        """
+        return {
+            "X-Content-Type-Options": self.X_CONTENT_TYPE_OPTIONS,
+            "X-Frame-Options": self.X_FRAME_OPTIONS,
+            "X-XSS-Protection": self.X_XSS_PROTECTION,
+            "Referrer-Policy": self.REFERRER_POLICY,
+            "Content-Security-Policy": self.CONTENT_SECURITY_POLICY if not self.DEBUG else None
+        }
+    
+    def get_rate_limit_config(self) -> dict:
+        """获取限流配置字典
+        
+        Returns:
+            限流配置字典
+        """
+        return {
+            "enabled": self.RATE_LIMIT_ENABLED,
+            "storage": self.RATE_LIMIT_STORAGE,
+            "redis_url": self.RATE_LIMIT_REDIS_URL,
+            "strategy": self.RATE_LIMIT_STRATEGY,
+            "default": self.RATE_LIMIT_DEFAULT,
+            "upload": self.RATE_LIMIT_UPLOAD,
+            "query": self.RATE_LIMIT_QUERY,
+            "llm": self.RATE_LIMIT_LLM,
+            "simulation": self.RATE_LIMIT_SIMULATION
         }
     
     def is_development(self) -> bool:

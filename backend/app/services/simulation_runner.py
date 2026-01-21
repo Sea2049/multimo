@@ -18,12 +18,12 @@ from datetime import datetime
 from enum import Enum
 from queue import Queue
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 from .zep_graph_memory_updater import ZepGraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
 
-logger = get_logger('mirofish.simulation_runner')
+logger = get_logger('multimo.simulation_runner')
 
 # 标记是否已注册清理函数
 _cleanup_registered = False

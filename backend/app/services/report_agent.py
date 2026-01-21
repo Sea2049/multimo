@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
 from .zep_tools import (
@@ -29,7 +29,7 @@ from .zep_tools import (
     InterviewResult
 )
 
-logger = get_logger('mirofish.report_agent')
+logger = get_logger('multimo.report_agent')
 
 
 class ReportLogger:
@@ -48,8 +48,9 @@ class ReportLogger:
             report_id: 报告ID，用于确定日志文件路径
         """
         self.report_id = report_id
+        config = get_config()
         self.log_file_path = os.path.join(
-            Config.UPLOAD_FOLDER, 'reports', report_id, 'agent_log.jsonl'
+            config.UPLOAD_FOLDER, 'reports', report_id, 'agent_log.jsonl'
         )
         self.start_time = datetime.now()
         self._ensure_log_file()
@@ -324,8 +325,9 @@ class ReportConsoleLogger:
             report_id: 报告ID，用于确定日志文件路径
         """
         self.report_id = report_id
+        config = get_config()
         self.log_file_path = os.path.join(
-            Config.UPLOAD_FOLDER, 'reports', report_id, 'console_log.txt'
+            config.UPLOAD_FOLDER, 'reports', report_id, 'console_log.txt'
         )
         self._ensure_log_file()
         self._file_handler = None
@@ -357,8 +359,8 @@ class ReportConsoleLogger:
         
         # 添加到 report_agent 相关的 logger
         loggers_to_attach = [
-            'mirofish.report_agent',
-            'mirofish.zep_tools',
+            'multimo.report_agent',
+            'multimo.zep_tools',
         ]
         
         for logger_name in loggers_to_attach:
@@ -373,8 +375,8 @@ class ReportConsoleLogger:
         
         if self._file_handler:
             loggers_to_detach = [
-                'mirofish.report_agent',
-                'mirofish.zep_tools',
+                'multimo.report_agent',
+                'multimo.zep_tools',
             ]
             
             for logger_name in loggers_to_detach:
@@ -1789,7 +1791,7 @@ class ReportManager:
     """
     
     # 报告存储目录
-    REPORTS_DIR = os.path.join(Config.UPLOAD_FOLDER, 'reports')
+    REPORTS_DIR = os.path.join(get_config().UPLOAD_FOLDER, 'reports')
     
     @classmethod
     def _ensure_reports_dir(cls):

@@ -139,6 +139,14 @@ export const getSimulationHistory = (limit = 20) => {
 }
 
 /**
+ * 列出所有模拟
+ * @param {Object} params - { project_id? }
+ */
+export const listSimulations = (params) => {
+  return requestWithRetry(() => service.get('/api/simulation/list', { params }), 3, 1000)
+}
+
+/**
  * 导出模拟数据
  * @param {string} simulationId
  */

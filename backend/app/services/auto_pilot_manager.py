@@ -24,13 +24,13 @@ from datetime import datetime
 from enum import Enum
 import uuid
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 from .simulation_manager import SimulationManager, SimulationStatus
 from .simulation_runner import SimulationRunner
 from .report_agent import ReportAgent, ReportManager
 
-logger = get_logger('mirofish.auto_pilot')
+logger = get_logger('multimo.auto_pilot')
 
 
 class AutoPilotMode(str, Enum):
@@ -154,7 +154,7 @@ class AutoPilotManager:
     """
     
     # 状态文件存储目录
-    STATE_DIR = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, 'auto_pilot')
+    STATE_DIR = os.path.join(get_config().SIMULATION_DATA_DIR, 'auto_pilot')
     
     def __init__(self):
         # 确保目录存在

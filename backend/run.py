@@ -19,13 +19,15 @@ if sys.platform == 'win32':
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
-from app.config import Config
+from app.config_new import get_config
 
 
 def main():
     """主函数"""
+    config = get_config()
+    
     # 验证配置
-    errors = Config.validate()
+    errors = config.validate_required_fields()
     if errors:
         print("配置错误:")
         for err in errors:
@@ -39,7 +41,7 @@ def main():
     # 获取运行配置
     host = os.environ.get('FLASK_HOST', '0.0.0.0')
     port = int(os.environ.get('FLASK_PORT', 5001))
-    debug = Config.DEBUG
+    debug = config.DEBUG
     
     # 启动服务
     app.run(host=host, port=port, debug=debug, threaded=True)

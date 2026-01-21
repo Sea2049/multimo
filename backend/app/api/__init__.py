@@ -1,8 +1,71 @@
 # API 模块
+from enum import Enum
+from typing import Optional
 from flask import Blueprint
 from flask_cors import CORS
 
 from app.config_new import get_config
+
+
+class ErrorCode(Enum):
+    """错误代码枚举类
+    
+    用于标识不同类型的错误，便于前端分类处理和用户提示
+    """
+    INVALID_INPUT = "INVALID_INPUT"
+    RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    FORBIDDEN = "FORBIDDEN"
+    CONFLICT = "CONFLICT"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
+    NETWORK_ERROR = "NETWORK_ERROR"
+    TIMEOUT_ERROR = "TIMEOUT_ERROR"
+    RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
+    PERMISSION_DENIED = "PERMISSION_DENIED"
+    CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
+    DATABASE_ERROR = "DATABASE_ERROR"
+    LLM_ERROR = "LLM_ERROR"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
+
+class ErrorRecovery:
+    """错误恢复建议映射
+    
+    根据错误代码提供用户友好的恢复建议
+    """
+    SUGGESTIONS = {
+        ErrorCode.INVALID_INPUT: "请检查输入参数是否正确，确保所有必填字段都已填写。",
+        ErrorCode.RESOURCE_NOT_FOUND: "请求的资源可能已被删除或不存在，请刷新页面后重试。",
+        ErrorCode.UNAUTHORIZED: "请登录后重试，或检查您的登录状态是否过期。",
+        ErrorCode.FORBIDDEN: "您没有权限执行此操作，请联系管理员获取权限。",
+        ErrorCode.CONFLICT: "资源状态已发生变化，请刷新页面后重试。",
+        ErrorCode.VALIDATION_ERROR: "请检查输入格式是否符合要求，确保所有字段格式正确。",
+        ErrorCode.INTERNAL_ERROR: "服务器内部错误，请稍后重试或联系管理员。",
+        ErrorCode.EXTERNAL_SERVICE_ERROR: "依赖服务暂时不可用，请稍后重试或联系管理员。",
+        ErrorCode.NETWORK_ERROR: "请检查网络连接，确保网络稳定后重试。",
+        ErrorCode.TIMEOUT_ERROR: "请求超时，可能是服务器繁忙，请稍后重试或刷新页面。",
+        ErrorCode.RATE_LIMIT_EXCEEDED: "请求过于频繁，请稍后重试。",
+        ErrorCode.PERMISSION_DENIED: "您没有权限执行此操作，请确认您的账户权限。",
+        ErrorCode.CONFIGURATION_ERROR: "系统配置问题，请联系管理员检查配置。",
+        ErrorCode.DATABASE_ERROR: "数据库操作失败，请稍后重试或联系管理员。",
+        ErrorCode.LLM_ERROR: "AI 服务暂时不可用，请稍后重试或检查 API 配置。",
+        ErrorCode.UNKNOWN_ERROR: "发生未知错误，请刷新页面后重试。如果问题持续，请联系管理员。",
+    }
+
+    @classmethod
+    def get(cls, error_code: ErrorCode) -> str:
+        """获取指定错误代码的恢复建议
+        
+        Args:
+            error_code: 错误代码
+            
+        Returns:
+            恢复建议字符串
+        """
+        return cls.SUGGESTIONS.get(error_code, cls.SUGGESTIONS[ErrorCode.UNKNOWN_ERROR])
+
 
 # 创建蓝图
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -67,14 +130,84 @@ def get_response(data: any, status_code: int = 200,
     }
 
 
-def get_error_response(error: str, status_code: int = 400) -> dict:
+def get_error_response(
+    error: str,
+    status_code: int = 400,
+    error_code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
+    recovery_suggestion: Optional[str] = None
+) -> dict:
     """统一错误响应格式
+    
+    提供统一的错误响应结构，包含错误代码和恢复建议
     
     Args:
         error: 错误消息
         status_code: HTTP 状态码
+        error_code: 错误代码枚举值
+        recovery_suggestion: 自定义恢复建议，如果不提供则使用默认值
         
     Returns:
         错误响应字典
     """
-    return get_response(None, status_code, error)
+    suggestion = recovery_suggestion if recovery_suggestion else ErrorRecovery.get(error_code)
+    
+    return {
+        "success": False,
+        "status_code": status_code,
+        "error_code": error_code.value,
+        "message": error,
+        "recovery_suggestion": suggestion,
+        "data": None
+    }
+
+
+def get_http_error_response(status_code: int, error_message: str = None) -> tuple:
+    """根据 HTTP 状态码获取统一的错误响应
+    
+    用于 Flask 错误处理器中生成标准化的错误响应
+    
+    Args:
+        status_code: HTTP 状态码
+        error_message: 自定义错误消息，如果不提供则使用默认消息
+        
+    Returns:
+        (响应字典, 状态码) 元组
+    """
+    error_code_map = {
+        400: ErrorCode.INVALID_INPUT,
+        401: ErrorCode.UNAUTHORIZED,
+        403: ErrorCode.FORBIDDEN,
+        404: ErrorCode.RESOURCE_NOT_FOUND,
+        405: ErrorCode.INVALID_INPUT,
+        409: ErrorCode.CONFLICT,
+        422: ErrorCode.VALIDATION_ERROR,
+        429: ErrorCode.RATE_LIMIT_EXCEEDED,
+        500: ErrorCode.INTERNAL_ERROR,
+        502: ErrorCode.EXTERNAL_SERVICE_ERROR,
+        503: ErrorCode.EXTERNAL_SERVICE_ERROR,
+    }
+    
+    default_messages = {
+        400: "请求参数错误",
+        401: "未授权访问",
+        403: "禁止访问",
+        404: "资源不存在",
+        405: "不支持的请求方法",
+        409: "资源冲突",
+        422: "数据验证失败",
+        429: "请求过于频繁",
+        500: "服务器内部错误",
+        502: "网关错误",
+        503: "服务暂时不可用",
+    }
+    
+    error_code = error_code_map.get(status_code, ErrorCode.UNKNOWN_ERROR)
+    message = error_message or default_messages.get(status_code, "发生错误")
+    
+    response = get_error_response(
+        error=message,
+        status_code=status_code,
+        error_code=error_code
+    )
+    
+    return response, status_code

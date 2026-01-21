@@ -1,6 +1,7 @@
 """
 Report API路由
 提供模拟报告生成、获取、对话等接口
+提供 API 认证和输入验证
 """
 
 import os
@@ -9,19 +10,27 @@ import threading
 from flask import request, jsonify, send_file
 
 from . import report_bp
-from ..config import Config
+from . import get_error_response, ErrorCode
+from .auth import require_api_key
+from ..config_new import get_config
 from ..services.report_agent import ReportAgent, ReportManager, ReportStatus
 from ..services.simulation_manager import SimulationManager
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 from ..utils.logger import get_logger
+from ..utils.validators import (
+    validate_no_sql_injection,
+    sanitize_string,
+    validate_graph_id
+)
 
-logger = get_logger('mirofish.api.report')
+logger = get_logger('multimo.api.report')
 
 
 # ============== 报告生成接口 ==============
 
 @report_bp.route('/generate', methods=['POST'])
+@require_api_key(permissions=["write"], signature_required=False)
 def generate_report():
     """
     生成模拟分析报告（异步任务）
@@ -51,9 +60,28 @@ def generate_report():
         
         simulation_id = data.get('simulation_id')
         if not simulation_id:
+            return jsonify(get_error_response(
+                error="请提供 simulation_id",
+                status_code=400,
+                error_code=ErrorCode.INVALID_INPUT
+            )), 400
+        
+        graph_id_result = validate_graph_id(simulation_id, "simulation_id")
+        if not graph_id_result.is_valid:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": "无效的 simulation_id 格式",
+                "errors": graph_id_result.get_error_messages()
+            }), 400
+        
+        simulation_id = sanitize_string(simulation_id, max_length=100)
+        
+        sql_result = validate_no_sql_injection(data, "request_data")
+        if not sql_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "输入包含敏感字符",
+                "errors": sql_result.get_error_messages()
             }), 400
         
         force_regenerate = data.get('force_regenerate', False)
@@ -63,10 +91,11 @@ def generate_report():
         state = manager.get_simulation(simulation_id)
         
         if not state:
-            return jsonify({
-                "success": False,
-                "error": f"模拟不存在: {simulation_id}"
-            }), 404
+            return jsonify(get_error_response(
+                error=f"模拟不存在: {simulation_id}",
+                status_code=404,
+                error_code=ErrorCode.RESOURCE_NOT_FOUND
+            )), 404
         
         # 检查是否已有报告
         if not force_regenerate:
@@ -934,7 +963,7 @@ def search_graph_tool():
     
     请求（JSON）：
         {
-            "graph_id": "mirofish_xxxx",
+            "graph_id": "multimo_xxxx",
             "query": "搜索查询",
             "limit": 10
         }
@@ -982,7 +1011,7 @@ def get_graph_statistics_tool():
     
     请求（JSON）：
         {
-            "graph_id": "mirofish_xxxx"
+            "graph_id": "multimo_xxxx"
         }
     """
     try:

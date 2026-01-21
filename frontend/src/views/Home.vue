@@ -35,7 +35,7 @@
         <div class="hero-right">
           <!-- Logo 区域 -->
           <div class="logo-container">
-            <img src="../assets/logo/multimo-logo.svg" alt="Multimo Logo" class="hero-logo" />
+            <img src="../assets/logo/multimo-logo.png" alt="Multimo Logo" class="hero-logo" />
           </div>
           
           <button class="scroll-down-btn" @click="scrollToBottom">
@@ -222,20 +222,19 @@
             <div class="advanced-options">
               <div class="advanced-header" @click="showAdvanced = !showAdvanced">
                 <div class="advanced-title">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M12 1v6m0 6v6"></path>
-                    <path d="m4.93 4.93 4.24 4.24m5.66 5.66 4.24 4.24"></path>
-                    <path d="M1 12h6m6 0h6"></path>
-                    <path d="m4.93 19.07 4.24-4.24m5.66-5.66 4.24-4.24"></path>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
                   </svg>
                   <span>高级选项</span>
                 </div>
                 <svg 
                   class="advanced-arrow" 
                   :class="{ expanded: showAdvanced }"
-                  width="16" 
-                  height="16" 
+                  width="14" 
+                  height="14" 
                   viewBox="0 0 24 24" 
                   fill="none" 
                   stroke="currentColor" 
@@ -438,7 +437,7 @@ const startSimulation = () => {
 
 .home-container {
   min-height: 100vh;
-  background: var(--white);
+  background: linear-gradient(135deg, #F8F9FA 0%, #E8EAF0 50%, #F0F2F8 100%);
   font-family: var(--font-sans);
   color: var(--black);
 }
@@ -559,8 +558,17 @@ const startSimulation = () => {
 }
 
 .hero-logo {
-  max-width: 500px; /* 调整logo大小 */
+  max-width: 500px;
   width: 100%;
+  opacity: 0.85;
+  mix-blend-mode: multiply;
+  filter: contrast(0.95) brightness(1.05);
+  transition: all 0.3s ease;
+}
+
+.hero-logo:hover {
+  opacity: 1;
+  filter: contrast(1) brightness(1);
 }
 
 .scroll-down-btn {
@@ -725,6 +733,7 @@ const startSimulation = () => {
 
 .console-section.btn-section {
   padding-top: 0;
+  margin-top: 0;
 }
 
 .console-header {
@@ -864,7 +873,7 @@ const startSimulation = () => {
   width: 100%;
   background: var(--black);
   color: var(--white);
-  border: none;
+  border: 1px solid #CCC;
   padding: 20px;
   font-family: var(--font-mono);
   font-weight: 700;
@@ -901,7 +910,7 @@ const startSimulation = () => {
   color: #999;
   cursor: not-allowed;
   transform: none;
-  border: 1px solid #E5E5E5;
+  border: 1px solid #CCC;
 }
 
 /* 轮数输入样式 */
@@ -952,39 +961,43 @@ const startSimulation = () => {
 
 /* 高级选项样式 */
 .advanced-options {
-  margin-top: 16px;
-  border: 1px solid #EAEAEA;
-  border-radius: 8px;
+  margin: 0 20px; /* 添加左右边距，与按钮对齐 */
+  border: 1px solid #CCC;
+  border-bottom: none; /* 与按钮连接时去掉底边框，或者保留看效果，这里先保留完整边框，通过margin控制 */
+  border-radius: 0;
   overflow: hidden;
   background: #FAFAFA;
 }
 
 .advanced-header {
-  padding: 12px 16px;
-  background: #F5F5F5;
+  padding: 20px;
+  background: #FAFAFA;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
   transition: background 0.2s;
   user-select: none;
+  /* 移除 header 的边框，由外层 options 容器控制 */
 }
 
 .advanced-header:hover {
-  background: #ECECEC;
+  background: #F0F0F0;
+  border-color: #CCC;
 }
 
 .advanced-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 600;
-  color: #666;
+  color: #333;
 }
 
 .advanced-title svg {
-  color: #999;
+  color: #666;
 }
 
 .advanced-arrow {
@@ -1017,7 +1030,12 @@ const startSimulation = () => {
 }
 
 .checkbox-wrapper input[type="checkbox"] {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .checkbox-custom {
@@ -1033,15 +1051,19 @@ const startSimulation = () => {
 }
 
 .checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom {
-  background: var(--black);
-  border-color: var(--black);
+  background-color: #FFFFFF;
+  border-color: #000000;
 }
 
 .checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom::after {
-  content: '✓';
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
+  content: '';
+  display: block;
+  width: 6px;
+  height: 10px;
+  border: solid #000000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
 }
 
 .checkbox-label {

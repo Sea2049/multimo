@@ -18,11 +18,11 @@ from datetime import datetime
 from openai import OpenAI
 from zep_cloud.client import Zep
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
-logger = get_logger('mirofish.oasis_profile')
+logger = get_logger('multimo.oasis_profile')
 
 
 @dataclass
@@ -185,9 +185,10 @@ class OasisProfileGenerator:
         zep_api_key: Optional[str] = None,
         graph_id: Optional[str] = None
     ):
-        self.api_key = api_key or Config.LLM_API_KEY
-        self.base_url = base_url or Config.LLM_BASE_URL
-        self.model_name = model_name or Config.LLM_MODEL_NAME
+        config = get_config()
+        self.api_key = api_key or config.LLM_API_KEY
+        self.base_url = base_url or config.LLM_BASE_URL
+        self.model_name = model_name or config.LLM_MODEL_NAME
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
@@ -198,7 +199,14 @@ class OasisProfileGenerator:
         )
         
         # Zep客户端用于检索丰富上下文
-        self.zep_api_key = zep_api_key or Config.ZEP_API_KEY
+        # Zep 需要专用的 API Key，优先使用 ZEP_API_KEY
+        if zep_api_key:
+            self.zep_api_key = zep_api_key
+        elif hasattr(config, 'ZEP_API_KEY') and config.ZEP_API_KEY:
+            self.zep_api_key = config.ZEP_API_KEY
+        else:
+            self.zep_api_key = config.LLM_API_KEY
+        
         self.zep_client = None
         self.graph_id = graph_id
         

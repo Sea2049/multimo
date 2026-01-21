@@ -9,10 +9,10 @@ from dataclasses import dataclass, field
 
 from zep_cloud.client import Zep
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 
-logger = get_logger('mirofish.zep_entity_reader')
+logger = get_logger('multimo.zep_entity_reader')
 
 # 用于泛型返回类型
 T = TypeVar('T')
@@ -78,9 +78,17 @@ class ZepEntityReader:
     """
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or Config.ZEP_API_KEY
+        config = get_config()
+        # Zep 需要专用的 API Key，优先使用 ZEP_API_KEY
+        if api_key:
+            self.api_key = api_key
+        elif hasattr(config, 'ZEP_API_KEY') and config.ZEP_API_KEY:
+            self.api_key = config.ZEP_API_KEY
+        else:
+            self.api_key = config.LLM_API_KEY
+        
         if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
+            raise ValueError("ZEP_API_KEY 或 LLM_API_KEY 未配置")
         
         self.client = Zep(api_key=self.api_key)
     

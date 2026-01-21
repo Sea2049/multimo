@@ -7,7 +7,7 @@ import json
 from typing import Optional, Dict, Any, List
 from openai import OpenAI
 
-from ..config import Config
+from ..config_new import get_config
 
 
 class LLMClient:
@@ -19,9 +19,10 @@ class LLMClient:
         base_url: Optional[str] = None,
         model: Optional[str] = None
     ):
-        self.api_key = api_key or Config.LLM_API_KEY
-        self.base_url = base_url or Config.LLM_BASE_URL
-        self.model = model or Config.LLM_MODEL_NAME
+        config = get_config()
+        self.api_key = api_key or config.LLM_API_KEY
+        self.base_url = base_url or config.LLM_BASE_URL
+        self.model = model or config.LLM_MODEL_NAME
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")

@@ -18,11 +18,11 @@ from datetime import datetime
 
 from openai import OpenAI
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
-logger = get_logger('mirofish.simulation_config')
+logger = get_logger('multimo.simulation_config')
 
 # 中国作息时间配置（北京时间）
 CHINA_TIMEZONE_CONFIG = {
@@ -227,9 +227,10 @@ class SimulationConfigGenerator:
         base_url: Optional[str] = None,
         model_name: Optional[str] = None
     ):
-        self.api_key = api_key or Config.LLM_API_KEY
-        self.base_url = base_url or Config.LLM_BASE_URL
-        self.model_name = model_name or Config.LLM_MODEL_NAME
+        config = get_config()
+        self.api_key = api_key or config.LLM_API_KEY
+        self.base_url = base_url or config.LLM_BASE_URL
+        self.model_name = model_name or config.LLM_MODEL_NAME
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")

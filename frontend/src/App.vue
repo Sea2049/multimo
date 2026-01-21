@@ -1,13 +1,27 @@
 <template>
   <router-view />
+  <ErrorAlert ref="errorAlertRef" @retry="handleRetry" />
 </template>
 
 <script setup>
-// 使用 Vue Router 来管理页面
+import { ref, onMounted } from 'vue'
+import ErrorAlert from './components/ErrorAlert.vue'
+import { setErrorAlertsRef } from './composables/useErrorHandler'
+
+const errorAlertRef = ref(null)
+
+const handleRetry = (item) => {
+  console.log('Retry action triggered:', item)
+}
+
+onMounted(() => {
+  if (errorAlertRef.value) {
+    setErrorAlertsRef(errorAlertRef.value)
+  }
+})
 </script>
 
 <style>
-/* 全局样式重置 */
 * {
   margin: 0;
   padding: 0;
@@ -22,13 +36,12 @@
   background-color: #ffffff;
 }
 
-/* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {      
   background: #f1f1f1;
 }
 
@@ -40,7 +53,6 @@
   background: #333333;
 }
 
-/* 全局按钮样式 */
 button {
   font-family: inherit;
 }

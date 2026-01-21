@@ -3,13 +3,13 @@ import shutil
 import zipfile
 import tempfile
 from typing import Optional
-from ..config import Config
+from ..config_new import get_config
 from ..services.simulation_manager import SimulationManager
 from ..services.report_agent import ReportManager
 from ..models.project import ProjectManager
 from ..utils.logger import get_logger
 
-logger = get_logger('mirofish.services.export')
+logger = get_logger('multimo.services.export')
 
 class ExportService:
     """
@@ -26,7 +26,7 @@ class ExportService:
             Path to the temporary zip file, or None if failed.
         """
         temp_dir = tempfile.mkdtemp()
-        zip_filename = f"mirofish_export_{simulation_id}.zip"
+        zip_filename = f"multimo_export_{simulation_id}.zip"
         zip_path = os.path.join(temp_dir, zip_filename)
         
         try:

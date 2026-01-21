@@ -1,16 +1,20 @@
 """
 图谱相关API路由
 采用项目上下文机制，服务端持久化状态
+提供 API 认证和输入验证
 """
 
 import os
 import time
 import traceback
 import threading
+from functools import wraps
 from flask import request, jsonify
 
 from . import graph_bp
-from ..config import Config
+from . import get_error_response, ErrorCode
+from .auth import require_api_key
+from ..config_new import get_config
 from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor
@@ -18,9 +22,15 @@ from ..utils.file_parser import FileParser
 from ..utils.logger import get_logger
 from ..models.task import TaskManager, TaskStatus
 from ..models.project import ProjectManager, ProjectStatus
+from ..utils.validators import (
+    validate_file_upload,
+    sanitize_filename,
+    validate_no_sql_injection,
+    sanitize_string
+)
 
 # 获取日志器
-logger = get_logger('mirofish.api')
+logger = get_logger('multimo.api')
 
 
 def allowed_file(filename: str) -> bool:
@@ -28,7 +38,7 @@ def allowed_file(filename: str) -> bool:
     if not filename or '.' not in filename:
         return False
     ext = os.path.splitext(filename)[1].lower().lstrip('.')
-    return ext in Config.ALLOWED_EXTENSIONS
+    return ext in get_config().ALLOWED_EXTENSIONS
 
 
 # ============== 项目管理接口 ==============
@@ -41,10 +51,11 @@ def get_project(project_id: str):
     project = ProjectManager.get_project(project_id)
     
     if not project:
-        return jsonify({
-            "success": False,
-            "error": f"项目不存在: {project_id}"
-        }), 404
+        return jsonify(get_error_response(
+            error=f"项目不存在: {project_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404
     
     return jsonify({
         "success": True,
@@ -75,10 +86,11 @@ def delete_project(project_id: str):
     success = ProjectManager.delete_project(project_id)
     
     if not success:
-        return jsonify({
-            "success": False,
-            "error": f"项目不存在或删除失败: {project_id}"
-        }), 404
+        return jsonify(get_error_response(
+            error=f"项目不存在或删除失败: {project_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404
     
     return jsonify({
         "success": True,
@@ -94,10 +106,11 @@ def reset_project(project_id: str):
     project = ProjectManager.get_project(project_id)
     
     if not project:
-        return jsonify({
-            "success": False,
-            "error": f"项目不存在: {project_id}"
-        }), 404
+        return jsonify(get_error_response(
+            error=f"项目不存在: {project_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404
     
     # 重置到本体已生成状态
     if project.ontology:
@@ -120,6 +133,7 @@ def reset_project(project_id: str):
 # ============== 接口1：上传文件并生成本体 ==============
 
 @graph_bp.route('/ontology/generate', methods=['POST'])
+@require_api_key(permissions=["write"], signature_required=False)
 def generate_ontology():
     """
     接口1：上传文件，分析生成本体定义
@@ -150,7 +164,6 @@ def generate_ontology():
     try:
         logger.info("=== 开始生成本体定义 ===")
         
-        # 获取参数
         simulation_requirement = request.form.get('simulation_requirement', '')
         project_name = request.form.get('project_name', 'Unnamed Project')
         additional_context = request.form.get('additional_context', '')
@@ -159,42 +172,59 @@ def generate_ontology():
         logger.debug(f"模拟需求: {simulation_requirement[:100]}...")
         
         if not simulation_requirement:
+            return jsonify(get_error_response(
+                error="请提供模拟需求描述 (simulation_requirement)",
+                status_code=400,
+                error_code=ErrorCode.INVALID_INPUT
+            )), 400
+        
+        simulation_requirement = sanitize_string(simulation_requirement, max_length=5000)
+        project_name = sanitize_string(project_name, max_length=200)
+        additional_context = sanitize_string(additional_context, max_length=2000)
+        
+        sql_result = validate_no_sql_injection(simulation_requirement, "simulation_requirement")
+        if not sql_result.is_valid:
             return jsonify({
                 "success": False,
-                "error": "请提供模拟需求描述 (simulation_requirement)"
+                "error": "输入包含敏感字符",
+                "errors": sql_result.get_error_messages()
             }), 400
         
-        # 获取上传的文件
         uploaded_files = request.files.getlist('files')
         if not uploaded_files or all(not f.filename for f in uploaded_files):
-            return jsonify({
-                "success": False,
-                "error": "请至少上传一个文档文件"
-            }), 400
+            return jsonify(get_error_response(
+                error="请至少上传一个文档文件",
+                status_code=400,
+                error_code=ErrorCode.INVALID_INPUT
+            )), 400
         
-        # 创建项目
         project = ProjectManager.create_project(name=project_name)
         project.simulation_requirement = simulation_requirement
         logger.info(f"创建项目: {project.project_id}")
         
-        # 保存文件并提取文本
         document_texts = []
         all_text = ""
         
         for file in uploaded_files:
-            if file and file.filename and allowed_file(file.filename):
-                # 保存文件到项目目录
+            if file and file.filename:
+                safe_filename = sanitize_filename(file.filename)
+                
+                file_result = validate_file_upload(safe_filename, file)
+                if not file_result.is_valid:
+                    logger.warning(f"文件验证失败: {safe_filename}, errors: {file_result.get_error_messages()}")
+                    continue
+                
+                file.seek(0)
                 file_info = ProjectManager.save_file_to_project(
                     project.project_id, 
                     file, 
-                    file.filename
+                    safe_filename
                 )
                 project.files.append({
                     "filename": file_info["original_filename"],
                     "size": file_info["size"]
                 })
                 
-                # 提取文本
                 text = FileParser.extract_text(file_info["path"])
                 text = TextProcessor.preprocess_text(text)
                 document_texts.append(text)
@@ -291,11 +321,12 @@ def build_graph():
     """
     try:
         logger.info("=== 开始构建图谱 ===")
+        config = get_config()
         
         # 检查配置
         errors = []
-        if not Config.ZEP_API_KEY:
-            errors.append("ZEP_API_KEY未配置")
+        if not config.LLM_API_KEY:
+            errors.append("LLM_API_KEY未配置")
         if errors:
             logger.error(f"配置错误: {errors}")
             return jsonify({
@@ -347,8 +378,8 @@ def build_graph():
         
         # 获取配置
         graph_name = data.get('graph_name', project.name or 'Multimo Graph')
-        chunk_size = data.get('chunk_size', project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
-        chunk_overlap = data.get('chunk_overlap', project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
+        chunk_size = data.get('chunk_size', project.chunk_size or config.DEFAULT_CHUNK_SIZE)
+        chunk_overlap = data.get('chunk_overlap', project.chunk_overlap or config.DEFAULT_CHUNK_OVERLAP)
         
         # 更新项目配置
         project.chunk_size = chunk_size
@@ -382,7 +413,7 @@ def build_graph():
         
         # 启动后台任务
         def build_task():
-            build_logger = get_logger('mirofish.build')
+            build_logger = get_logger('multimo.build')
             try:
                 build_logger.info(f"[{task_id}] 开始构建图谱...")
                 task_manager.update_task(
@@ -391,8 +422,8 @@ def build_graph():
                     message="初始化图谱构建服务..."
                 )
                 
-                # 创建图谱构建服务
-                builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
+                # 创建图谱构建服务（不使用参数，让它自动选择正确的 Key）
+                builder = GraphBuilderService()
                 
                 # 分块
                 task_manager.update_task(
@@ -574,16 +605,14 @@ def list_tasks():
 @graph_bp.route('/data/<graph_id>', methods=['GET'])
 def get_graph_data(graph_id: str):
     """
-    获取图谱数据（节点和边）
+    获取图谱数据(节点和边)
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": "ZEP_API_KEY未配置"
-            }), 500
+        config = get_config()
         
-        builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
+        # Zep 需要专用的 API Key，不传参数让 GraphBuilderService 自动选择
+        builder = GraphBuilderService()
+        
         graph_data = builder.get_graph_data(graph_id)
         
         return jsonify({
@@ -592,10 +621,23 @@ def get_graph_data(graph_id: str):
         })
         
     except Exception as e:
+        error_msg = str(e)
+        error_type = "unknown_error"
+        
+        if "401" in error_msg or "unauthorized" in error_msg.lower():
+            error_type = "auth_error"
+            error_msg = "Zep API认证失败,API Key可能已过期"
+        elif "404" in error_msg or "not found" in error_msg.lower():
+            error_type = "not_found"
+            error_msg = f"图谱不存在: {graph_id}"
+        
+        logger.error(f"获取图谱数据失败: {error_msg}")
+        
         return jsonify({
             "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "error": error_msg,
+            "error_type": error_type,
+            "graph_id": graph_id
         }), 500
 
 
@@ -605,13 +647,8 @@ def delete_graph(graph_id: str):
     删除Zep图谱
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": "ZEP_API_KEY未配置"
-            }), 500
-        
-        builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
+        # Zep 需要专用的 API Key，不传参数让 GraphBuilderService 自动选择
+        builder = GraphBuilderService()
         builder.delete_graph(graph_id)
         
         return jsonify({

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field, asdict
-from ..config import Config
+from ..config_new import get_config
 
 
 class ProjectStatus(str, Enum):
@@ -102,7 +102,7 @@ class ProjectManager:
     """项目管理器 - 负责项目的持久化存储和检索"""
     
     # 项目存储根目录
-    PROJECTS_DIR = os.path.join(Config.UPLOAD_FOLDER, 'projects')
+    PROJECTS_DIR = os.path.join(get_config().UPLOAD_FOLDER, 'projects')
     
     @classmethod
     def _ensure_projects_dir(cls):

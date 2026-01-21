@@ -416,16 +416,35 @@ const loadReportData = async () => {
 }
 
 const loadGraph = async (graphId) => {
+  if (!graphId) {
+    addLog('警告: graph_id 为空,跳过图谱加载')
+    return
+  }
+  
   graphLoading.value = true
+  addLog(`开始加载图谱: ${graphId}`)
   
   try {
     const res = await getGraphData(graphId)
     if (res.success) {
       graphData.value = res.data
       addLog('图谱数据加载成功')
+    } else {
+      const errorType = res.error_type || 'unknown'
+      let userMessage = res.error || '未知错误'
+      
+      if (errorType === 'auth_error') {
+        userMessage = 'Zep API认证失败,图谱数据暂时无法加载。报告的其他功能不受影响。'
+      } else if (errorType === 'not_found') {
+        userMessage = '图谱数据不存在或已被删除。报告的其他功能不受影响。'
+      }
+      
+      addLog(`图谱加载失败: ${userMessage}`)
+      console.warn('图谱加载失败详情:', res)
     }
   } catch (err) {
-    addLog(`图谱加载失败: ${err.message}`)
+    addLog(`图谱加载异常: ${err.message || '网络错误'}`)
+    console.error('图谱加载详细错误:', err)
   } finally {
     graphLoading.value = false
   }

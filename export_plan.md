@@ -17,7 +17,7 @@ We will add a new endpoint in `backend/app/api/simulation.py` (or a new `export.
 
 - **Function**: Bundles all relevant files into a ZIP archive.
 - **Input**: `simulation_id`
-- **Output**: Downloadable ZIP file named `mirofish_export_<simulation_id>.zip`
+- **Output**: Downloadable ZIP file named `multimo_export_<simulation_id>.zip`
 
 ## 3. Implementation Steps
 

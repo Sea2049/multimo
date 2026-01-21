@@ -62,6 +62,7 @@
         <!-- Step 2: 环境搭建 -->
         <Step2EnvSetup
           v-else-if="currentStep === 2"
+          :simulationId="simulationId"
           :projectData="projectData"
           :graphData="graphData"
           :systemLogs="systemLogs"
@@ -83,6 +84,7 @@ import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
+import { createSimulation, listSimulations } from '../api/simulation'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 
 const route = useRoute()
@@ -109,9 +111,7 @@ const systemLogs = ref([])
 const simulationMode = ref('manual') // auto | manual
 const simulationRounds = ref(15)
 
-// Polling timers
-let pollTimer = null
-let graphPollTimer = null
+const simulationId = ref(null)
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -160,15 +160,59 @@ const toggleMaximize = (target) => {
   }
 }
 
-const handleNextStep = (params = {}) => {
-  if (currentStep.value < 5) {
+const handleNextStep = async (params = {}) => {
+  if (currentStep.value === 1) {
+    // Step 1 -> Step 2
+    
+    // 如果已经有 simulationId，直接使用，不再创建新的
+    if (simulationId.value) {
+      addLog(`Using existing simulation: ${simulationId.value}`)
+      currentStep.value++
+      return
+    }
+    
+    // 否则创建新的 Simulation
+    try {
+      loading.value = true
+      addLog('Creating simulation instance...')
+      
+      const res = await createSimulation({
+        project_id: currentProjectId.value,
+        name: `${projectData.value.name} - Simulation`
+      })
+      
+      if (res.success) {
+        simulationId.value = res.data.simulation_id
+        addLog(`Simulation created: ${simulationId.value}`)
+        currentStep.value++
+      } else {
+        error.value = res.error
+        addLog(`Error creating simulation: ${res.error}`)
+      }
+    } catch (err) {
+      addLog(`Exception creating simulation: ${err.message}`)
+    } finally {
+      loading.value = false
+    }
+  } else if (currentStep.value === 2) {
+    // Step 2 -> Step 3: 跳转路由
+    addLog('Proceeding to Step 3...')
+    
+    // 构建路由参数
+    const routeParams = {
+      name: 'SimulationRun',
+      params: { simulationId: simulationId.value }
+    }
+    
+    // 如果有自定义轮数，通过 query 参数传递
+    if (params.maxRounds) {
+      routeParams.query = { maxRounds: params.maxRounds }
+    }
+    
+    router.push(routeParams)
+  } else if (currentStep.value < 5) {
     currentStep.value++
     addLog(`进入 Step ${currentStep.value}: ${stepNames[currentStep.value - 1]}`)
-    
-    // 如果是从 Step 2 进入 Step 3，记录模拟轮数配置
-    if (currentStep.value === 3 && params.maxRounds) {
-      addLog(`自定义模拟轮数: ${params.maxRounds} 轮`)
-    }
   }
 }
 
@@ -244,6 +288,28 @@ const loadProject = async () => {
       projectData.value = res.data
       updatePhaseByStatus(res.data.status)
       addLog(`Project loaded. Status: ${res.data.status}`)
+      
+      // 尝试获取关联的 Simulation
+      try {
+        const simRes = await listSimulations({ project_id: currentProjectId.value })
+        if (simRes.success && simRes.data && simRes.data.length > 0) {
+          // 取最新的一个 Simulation
+          // 假设后端返回按时间倒序，或者我们需要自己排序
+          // 这里简单取第一个，通常是最新的
+          const latestSim = simRes.data[0]
+          simulationId.value = latestSim.simulation_id
+          addLog(`Found existing simulation: ${simulationId.value}`)
+          
+          // 如果存在关联的 Simulation，说明图谱构建肯定已完成
+          // 强制将状态设为 2 (Graph Completed)，确保显示下一步按钮
+          if (currentPhase.value < 2) {
+            currentPhase.value = 2
+            addLog('Force setting phase to 2 because simulation exists')
+          }
+        }
+      } catch (simErr) {
+        console.warn('Failed to list simulations:', simErr)
+      }
       
       if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()

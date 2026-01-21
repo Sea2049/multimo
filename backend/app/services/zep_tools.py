@@ -15,11 +15,11 @@ from dataclasses import dataclass, field
 
 from zep_cloud.client import Zep
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 from ..utils.llm_client import LLMClient
 
-logger = get_logger('mirofish.zep_tools')
+logger = get_logger('multimo.zep_tools')
 
 
 @dataclass
@@ -399,9 +399,21 @@ class ZepToolsService:
     RETRY_DELAY = 2.0
     
     def __init__(self, api_key: Optional[str] = None, llm_client: Optional[LLMClient] = None):
-        self.api_key = api_key or Config.ZEP_API_KEY
+        config = get_config()
+        # Zep 需要专用的 API Key，优先使用 ZEP_API_KEY
+        if api_key:
+            self.api_key = api_key
+        elif hasattr(config, 'ZEP_API_KEY') and config.ZEP_API_KEY:
+            self.api_key = config.ZEP_API_KEY
+        else:
+            self.api_key = config.LLM_API_KEY
+        
         if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
+            raise ValueError("ZEP_API_KEY 或 LLM_API_KEY 未配置")
+        
+        # 验证 Key 格式（Zep Cloud Key 以 z_ 开头）
+        if not self.api_key.startswith('z_'):
+            logger.warning(f"Zep API Key 格式可能无效，期望以 'z_' 开头，当前 Key: {self.api_key[:15]}...")
         
         self.client = Zep(api_key=self.api_key)
         # LLM客户端用于InsightForge生成子问题

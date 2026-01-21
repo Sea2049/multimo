@@ -4,6 +4,7 @@ import sqlite3
 import json
 from typing import Dict, Any, List, Optional
 from contextlib import contextmanager
+from datetime import datetime
 from app.core.interfaces import MemoryStorage
 
 
@@ -62,7 +63,6 @@ class SQLiteStorage(DatabaseStorage):
     
     def _initialize_tables(self, conn):
         """初始化数据库表"""
-        # 创建存储表
         conn.execute("""
             CREATE TABLE IF NOT EXISTS storage (
                 key TEXT PRIMARY KEY,
@@ -73,10 +73,40 @@ class SQLiteStorage(DatabaseStorage):
             )
         """)
         
-        # 创建索引
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_created_at 
             ON storage(created_at)
+        """)
+        
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                task_id TEXT PRIMARY KEY,
+                task_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                progress INTEGER DEFAULT 0,
+                message TEXT,
+                result TEXT,
+                error TEXT,
+                metadata TEXT,
+                progress_detail TEXT
+            )
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_task_status 
+            ON tasks(status)
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_task_type 
+            ON tasks(task_type)
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_task_created 
+            ON tasks(created_at)
         """)
         
         conn.commit()
@@ -255,3 +285,164 @@ class SQLiteStorage(DatabaseStorage):
         except Exception as e:
             print(f"Error getting recent data from database: {e}")
             return []
+    
+    def store_task(self, task_data: Dict[str, Any]) -> bool:
+        """存储任务"""
+        try:
+            def serialize_value(value):
+                if isinstance(value, dict):
+                    return json.dumps(value, ensure_ascii=False, default=str)
+                return value
+            
+            with self.get_connection() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO tasks 
+                    (task_id, task_type, status, created_at, updated_at, 
+                     progress, message, result, error, metadata, progress_detail)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    task_data.get("task_id"),
+                    task_data.get("task_type"),
+                    serialize_value(task_data.get("status")),
+                    task_data.get("created_at"),
+                    task_data.get("updated_at"),
+                    task_data.get("progress", 0),
+                    task_data.get("message"),
+                    serialize_value(task_data.get("result")),
+                    task_data.get("error"),
+                    serialize_value(task_data.get("metadata")),
+                    serialize_value(task_data.get("progress_detail"))
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error storing task to database: {e}")
+            return False
+    
+    def retrieve_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """检索任务"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM tasks WHERE task_id = ?",
+                    (task_id,)
+                )
+                row = cursor.fetchone()
+                
+                if row:
+                    return dict(row)
+                return None
+        except Exception as e:
+            print(f"Error retrieving task from database: {e}")
+            return None
+    
+    def list_tasks(self, task_type: Optional[str] = None, 
+                   status: Optional[str] = None,
+                   limit: int = 100) -> List[Dict[str, Any]]:
+        """列出任务"""
+        try:
+            results = []
+            
+            with self.get_connection() as conn:
+                query = "SELECT * FROM tasks WHERE 1=1"
+                params = []
+                
+                if task_type:
+                    query += " AND task_type = ?"
+                    params.append(task_type)
+                
+                if status:
+                    query += " AND status = ?"
+                    params.append(status)
+                
+                query += " ORDER BY created_at DESC LIMIT ?"
+                params.append(limit)
+                
+                cursor = conn.execute(query, params)
+                
+                for row in cursor.fetchall():
+                    results.append(dict(row))
+            
+            return results
+        except Exception as e:
+            print(f"Error listing tasks from database: {e}")
+            return []
+    
+    def update_task(self, task_id: str, **kwargs) -> bool:
+        """更新任务"""
+        try:
+            if not kwargs:
+                return True
+            
+            with self.get_connection() as conn:
+                set_clauses = []
+                values = []
+                
+                for key, value in kwargs.items():
+                    set_clauses.append(f"{key} = ?")
+                    if isinstance(value, dict):
+                        values.append(json.dumps(value, ensure_ascii=False, default=str))
+                    else:
+                        values.append(value)
+                
+                values.append(task_id)
+                
+                query = f"""
+                    UPDATE tasks 
+                    SET {', '.join(set_clauses)}, updated_at = CURRENT_TIMESTAMP
+                    WHERE task_id = ?
+                """
+                
+                conn.execute(query, values)
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating task in database: {e}")
+            return False
+    
+    def delete_task(self, task_id: str) -> bool:
+        """删除任务"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute(
+                    "DELETE FROM tasks WHERE task_id = ?",
+                    (task_id,)
+                )
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error deleting task from database: {e}")
+            return False
+    
+    def count_tasks(self, status: Optional[str] = None) -> int:
+        """统计任务数量"""
+        try:
+            with self.get_connection() as conn:
+                if status:
+                    cursor = conn.execute(
+                        "SELECT COUNT(*) as count FROM tasks WHERE status = ?",
+                        (status,)
+                    )
+                else:
+                    cursor = conn.execute("SELECT COUNT(*) as count FROM tasks")
+                
+                return cursor.fetchone()["count"]
+        except Exception as e:
+            print(f"Error counting tasks in database: {e}")
+            return 0
+    
+    def cleanup_tasks(self, older_than_hours: int = 24) -> int:
+        """清理旧任务（只清理已完成和失败的）"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    DELETE FROM tasks 
+                    WHERE status IN ('completed', 'failed')
+                    AND created_at < datetime('now', ?)
+                """, (f"-{older_than_hours} hours",))
+                
+                conn.commit()
+                return cursor.rowcount
+        except Exception as e:
+            print(f"Error cleaning up tasks in database: {e}")
+            return 0

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from zep_cloud.client import Zep
 from zep_cloud import EpisodeData, EntityEdgeSourceTarget
 
-from ..config import Config
+from ..config_new import get_config
 from ..models.task import TaskManager, TaskStatus
 from .text_processor import TextProcessor
 
@@ -42,9 +42,21 @@ class GraphBuilderService:
     """
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or Config.ZEP_API_KEY
+        config = get_config()
+        # Zep 需要专用的 API Key，优先使用 ZEP_API_KEY
+        if api_key:
+            self.api_key = api_key
+        elif hasattr(config, 'ZEP_API_KEY') and config.ZEP_API_KEY:
+            self.api_key = config.ZEP_API_KEY
+        else:
+            self.api_key = config.LLM_API_KEY
+        
         if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
+            raise ValueError("ZEP_API_KEY 或 LLM_API_KEY 未配置，请确保在 .env 文件中设置了有效的 Zep API Key")
+        
+        # 验证 Key 格式（Zep Cloud Key 以 z_ 开头）
+        if not self.api_key.startswith('z_'):
+            raise ValueError(f"Zep API Key 格式无效，期望以 'z_' 开头，当前 Key: {self.api_key[:15]}...")
         
         self.client = Zep(api_key=self.api_key)
         self.task_manager = TaskManager()
@@ -301,7 +313,7 @@ class GraphBuilderService:
     
     def create_graph(self, name: str) -> str:
         """创建Zep图谱（公开方法）"""
-        graph_id = f"mirofish_{uuid.uuid4().hex[:16]}"
+        graph_id = f"multimo_{uuid.uuid4().hex[:16]}"
         
         self.client.graph.create(
             graph_id=graph_id,

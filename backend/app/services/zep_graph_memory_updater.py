@@ -14,10 +14,10 @@ from queue import Queue, Empty
 
 from zep_cloud.client import Zep
 
-from ..config import Config
+from ..config_new import get_config
 from ..utils.logger import get_logger
 
-logger = get_logger('mirofish.zep_graph_memory_updater')
+logger = get_logger('multimo.zep_graph_memory_updater')
 
 
 @dataclass
@@ -237,10 +237,17 @@ class ZepGraphMemoryUpdater:
             api_key: Zep API Key（可选，默认从配置读取）
         """
         self.graph_id = graph_id
-        self.api_key = api_key or Config.ZEP_API_KEY
+        config = get_config()
+        # Zep 需要专用的 API Key，优先使用 ZEP_API_KEY
+        if api_key:
+            self.api_key = api_key
+        elif hasattr(config, 'ZEP_API_KEY') and config.ZEP_API_KEY:
+            self.api_key = config.ZEP_API_KEY
+        else:
+            self.api_key = config.LLM_API_KEY
         
         if not self.api_key:
-            raise ValueError("ZEP_API_KEY未配置")
+            raise ValueError("ZEP_API_KEY 或 LLM_API_KEY 未配置")
         
         self.client = Zep(api_key=self.api_key)
         

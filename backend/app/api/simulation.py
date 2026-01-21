@@ -1,6 +1,7 @@
 """
 模拟相关API路由
 Step2: Zep实体读取与过滤、OASIS模拟准备与运行（全程自动化）
+提供 API 认证和输入验证
 """
 
 import os
@@ -8,15 +9,22 @@ import traceback
 from flask import request, jsonify, send_file
 
 from . import simulation_bp
-from ..config import Config
+from . import get_error_response, ErrorCode
+from .auth import require_api_key
+from ..config_new import get_config
 from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..utils.logger import get_logger
 from ..models.project import ProjectManager
+from ..utils.validators import (
+    validate_no_sql_injection,
+    sanitize_string,
+    validate_graph_id
+)
 
-logger = get_logger('mirofish.api.simulation')
+logger = get_logger('multimo.api.simulation')
 
 
 # Interview prompt 优化前缀
@@ -56,11 +64,14 @@ def get_graph_entities(graph_id: str):
         enrich: 是否获取相关边信息（默认true）
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": "ZEP_API_KEY未配置"
-            }), 500
+        config = get_config()
+        if not config.LLM_API_KEY:
+            return jsonify(get_error_response(
+                error="LLM_API_KEY未配置",
+                status_code=500,
+                error_code=ErrorCode.CONFIGURATION_ERROR,
+                recovery_suggestion="请联系管理员配置 LLM_API_KEY 环境变量"
+            )), 500
         
         entity_types_str = request.args.get('entity_types', '')
         entity_types = [t.strip() for t in entity_types_str.split(',') if t.strip()] if entity_types_str else None
@@ -93,10 +104,11 @@ def get_graph_entities(graph_id: str):
 def get_entity_detail(graph_id: str, entity_uuid: str):
     """获取单个实体的详细信息"""
     try:
-        if not Config.ZEP_API_KEY:
+        config = get_config()
+        if not config.LLM_API_KEY:
             return jsonify({
                 "success": False,
-                "error": "ZEP_API_KEY未配置"
+                "error": "LLM_API_KEY未配置"
             }), 500
         
         reader = ZepEntityReader()
@@ -126,10 +138,11 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
 def get_entities_by_type(graph_id: str, entity_type: str):
     """获取指定类型的所有实体"""
     try:
-        if not Config.ZEP_API_KEY:
+        config = get_config()
+        if not config.LLM_API_KEY:
             return jsonify({
                 "success": False,
-                "error": "ZEP_API_KEY未配置"
+                "error": "LLM_API_KEY未配置"
             }), 500
         
         enrich = request.args.get('enrich', 'true').lower() == 'true'
@@ -171,7 +184,7 @@ def create_simulation():
     请求（JSON）：
         {
             "project_id": "proj_xxxx",      // 必填
-            "graph_id": "mirofish_xxxx",    // 可选，如不提供则从project获取
+            "graph_id": "multimo_xxxx",    // 可选，如不提供则从project获取
             "enable_twitter": true,          // 可选，默认true
             "enable_reddit": true            // 可选，默认true
         }
@@ -182,7 +195,7 @@ def create_simulation():
             "data": {
                 "simulation_id": "sim_xxxx",
                 "project_id": "proj_xxxx",
-                "graph_id": "mirofish_xxxx",
+                "graph_id": "multimo_xxxx",
                 "status": "created",
                 "enable_twitter": true,
                 "enable_reddit": true,
@@ -253,9 +266,10 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         (is_prepared: bool, info: dict)
     """
     import os
-    from ..config import Config
+    from ..config_new import get_config
     
-    simulation_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
+    config = get_config()
+    simulation_dir = os.path.join(config.SIMULATION_DATA_DIR, simulation_id)
     
     # 检查目录是否存在
     if not os.path.exists(simulation_dir):
@@ -356,6 +370,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
 
 
 @simulation_bp.route('/prepare', methods=['POST'])
+@require_api_key(permissions=["write"], signature_required=False)
 def prepare_simulation():
     """
     准备模拟环境（异步任务，LLM智能生成所有参数）
@@ -399,7 +414,7 @@ def prepare_simulation():
     import threading
     import os
     from ..models.task import TaskManager, TaskStatus
-    from ..config import Config
+    from ..config_new import get_config
     
     try:
         data = request.get_json() or {}
@@ -409,6 +424,24 @@ def prepare_simulation():
             return jsonify({
                 "success": False,
                 "error": "请提供 simulation_id"
+            }), 400
+        
+        graph_id_result = validate_graph_id(simulation_id, "simulation_id")
+        if not graph_id_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "无效的 simulation_id 格式",
+                "errors": graph_id_result.get_error_messages()
+            }), 400
+        
+        simulation_id = sanitize_string(simulation_id, max_length=100)
+        
+        sql_result = validate_no_sql_injection(data, "request_data")
+        if not sql_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "输入包含敏感字符",
+                "errors": sql_result.get_error_messages()
             }), 400
         
         manager = SimulationManager()
@@ -1051,12 +1084,14 @@ def get_simulation_profiles_realtime(simulation_id: str):
     import json
     import csv
     from datetime import datetime
-    
+    from ..config_new import get_config
+
     try:
         platform = request.args.get('platform', 'reddit')
         
         # 获取模拟目录
-        sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
+        config = get_config()
+        sim_dir = os.path.join(config.SIMULATION_DATA_DIR, simulation_id)
         
         if not os.path.exists(sim_dir):
             return jsonify({
@@ -1156,10 +1191,12 @@ def get_simulation_config_realtime(simulation_id: str):
     """
     import json
     from datetime import datetime
+    from ..config_new import get_config
     
     try:
         # 获取模拟目录
-        sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
+        config = get_config()
+        sim_dir = os.path.join(config.SIMULATION_DATA_DIR, simulation_id)
         
         if not os.path.exists(sim_dir):
             return jsonify({
@@ -1376,7 +1413,7 @@ def generate_profiles():
     
     请求（JSON）：
         {
-            "graph_id": "mirofish_xxxx",     // 必填
+            "graph_id": "multimo_xxxx",     // 必填
             "entity_types": ["Student"],      // 可选
             "use_llm": true,                  // 可选
             "platform": "reddit"              // 可选
@@ -1831,7 +1868,7 @@ def export_simulation_data(simulation_id: str):
         return send_file(
             zip_path,
             as_attachment=True,
-            download_name=f"mirofish_export_{simulation_id}.zip"
+            download_name=f"multimo_export_{simulation_id}.zip"
         )
         
     except Exception as e:

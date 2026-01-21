@@ -608,3 +608,402 @@ def sanitize_dict(data: Dict[str, Any],
             result[key] = value
     
     return result
+
+
+# ============== 文件上传安全验证 ==============
+
+# 允许的文件扩展名（白名单）
+ALLOWED_FILE_EXTENSIONS = {
+    "pdf", "md", "txt", "markdown", "json", "xml", "csv"
+}
+
+# 允许的 MIME 类型
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/markdown",
+    "text/plain",
+    "application/json",
+    "text/csv",
+    "application/xml"
+}
+
+# 危险文件扩展名（黑名单）
+DANGEROUS_EXTENSIONS = {
+    "exe", "bat", "cmd", "com", "pif", "scr", "sh", "bash", "ps1",
+    "js", "jse", "vbs", "vbe", "wsh", "wsf", "wsc", "msi", "dll",
+    "php", "phtml", "php3", "php4", "php5", "asp", "aspx", "jsp",
+    "html", "htm", "xhtml", "htaccess", "htpasswd",
+    "sql", "db", "sqlite", "mdb", "accdb",
+    "py", "rb", "pl", "cgi", "perl",
+    "zip", "rar", "7z", "tar", "gz", "bz2"
+}
+
+# 危险内容模式（用于文件内容扫描）
+DANGEROUS_PATTERNS = [
+    rb"<\?php",
+    rb"<?xml",
+    rb"<script",
+    rb"javascript:",
+    rb"onload=",
+    rb"onerror=",
+    rb"onclick=",
+    rb"<iframe",
+    rb"<object",
+    rb"<embed",
+    rb"<link",
+    rb"@import",
+    rb"expression\(",
+    rb"url\(",
+    rb"data:text/html",
+    rb"base64,",
+]
+
+
+def validate_file_extension(filename: str) -> ValidationResult:
+    """验证文件扩展名
+    
+    Args:
+        filename: 文件名
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    if not filename:
+        result.add_error("filename", "文件名不能为空")
+        return result
+    
+    if not isinstance(filename, str):
+        result.add_error("filename", "文件名必须是字符串")
+        return result
+    
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    
+    if not ext:
+        result.add_error("filename", "文件缺少扩展名")
+        return result
+    
+    if ext in DANGEROUS_EXTENSIONS:
+        result.add_error("filename", f"不允许的文件类型: .{ext}")
+        return result
+    
+    if ext not in ALLOWED_FILE_EXTENSIONS:
+        result.add_error("filename", f"不支持的文件类型: .{ext}")
+        return result
+    
+    return result
+
+
+def validate_file_mime_type(file_stream, max_size: int = 50 * 1024 * 1024) -> ValidationResult:
+    """验证文件 MIME 类型
+    
+    Args:
+        file_stream: 文件流
+        max_size: 最大文件大小
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    if not file_stream:
+        result.add_error("file", "文件不能为空")
+        return result
+    
+    file_stream.seek(0, 2)
+    file_size = file_stream.tell()
+    file_stream.seek(0)
+    
+    if file_size > max_size:
+        result.add_error("file_size", f"文件大小超出限制: {file_size} > {max_size}")
+        return result
+    
+    header = file_stream.read(1024)
+    file_stream.seek(0)
+    
+    if header.startswith(b"%PDF"):
+        mime_type = "application/pdf"
+    elif header.startswith(b"#!"):
+        mime_type = "text/script"
+    elif header.startswith(b"<!DOCTYPE") or header.startswith(b"<html"):
+        mime_type = "text/html"
+    elif header.startswith(b"PK\x03\x04"):
+        mime_type = "application/zip"
+    elif header.startswith(b"\x1f\x8b"):
+        mime_type = "application/gzip"
+    else:
+        mime_type = "text/plain"
+    
+    if mime_type == "text/script":
+        result.add_error("mime_type", "不支持的脚本文件")
+        return result
+    
+    if mime_type == "text/html":
+        result.add_error("mime_type", "不支持的 HTML 文件")
+        return result
+    
+    return result
+
+
+def validate_file_content(file_stream) -> ValidationResult:
+    """扫描文件内容中的危险模式
+    
+    Args:
+        file_stream: 文件流
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    if not file_stream:
+        return result
+    
+    content = file_stream.read(8192)
+    file_stream.seek(0)
+    
+    for pattern in DANGEROUS_PATTERNS:
+        if pattern in content.lower():
+            result.add_error("content", "文件包含危险内容")
+            break
+    
+    return result
+
+
+def validate_file_upload(
+    filename: str,
+    file_stream,
+    max_size: int = 50 * 1024 * 1024,
+    check_content: bool = True
+) -> ValidationResult:
+    """综合验证上传的文件
+    
+    Args:
+        filename: 文件名
+        file_stream: 文件流
+        max_size: 最大文件大小
+        check_content: 是否检查文件内容
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    ext_result = validate_file_extension(filename)
+    if not ext_result.is_valid:
+        result.errors.extend(ext_result.errors)
+    
+    mime_result = validate_file_mime_type(file_stream, max_size)
+    if not mime_result.is_valid:
+        result.errors.extend(mime_result.errors)
+    
+    if check_content:
+        content_result = validate_file_content(file_stream)
+        if not content_result.is_valid:
+            result.errors.extend(content_result.errors)
+    
+    result.is_valid = len(result.errors) == 0
+    
+    return result
+
+
+def sanitize_filename(filename: str) -> str:
+    """清理文件名，防止路径遍历攻击
+    
+    Args:
+        filename: 原始文件名
+        
+    Returns:
+        清理后的文件名
+    """
+    if not isinstance(filename, str):
+        return "unknown"
+    
+    import os
+    import re
+    
+    name = os.path.basename(filename)
+    name = re.sub(r'[^\w\s\-.]', '_', name)
+    name = name.strip('._')
+    
+    if not name:
+        name = "file"
+    
+    return name
+
+
+# ============== SQL 注入检测 ==============
+
+SQL_INJECTION_PATTERNS = [
+    r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|EXEC)\b)",
+    r"(\b(UNION|AND|OR)\b\s+\w+)",
+    r"(--|;|/\*|\*/|@@|@)",
+    r"(\bEXEC(\s|\())",
+    r"(\bxp_cmdshell\b)",
+    r"(\bsp_\w+\b)",
+    r"(0x[0-9a-fA-F]+)",
+    r"(\'|\"|`)",
+    r"(\bWAITFOR\s+DELAY\b)",
+    r"(\bSLEEP\(\d*\))",
+]
+
+
+def contains_sql_injection(value: str) -> bool:
+    """检测字符串是否包含 SQL 注入特征
+    
+    Args:
+        value: 待检测的字符串
+        
+    Returns:
+        是否包含 SQL 注入特征
+    """
+    if not isinstance(value, str):
+        return False
+    
+    value_lower = value.lower()
+    
+    for pattern in SQL_INJECTION_PATTERNS:
+        if re.search(pattern, value, re.IGNORECASE):
+            return True
+    
+    return False
+
+
+def validate_no_sql_injection(value: Any, field_name: str = "field") -> ValidationResult:
+    """验证字符串不包含 SQL 注入
+    
+    Args:
+        value: 待验证的值
+        field_name: 字段名
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    if value is None:
+        return result
+    
+    if isinstance(value, str):
+        if contains_sql_injection(value):
+            result.add_error(field_name, f"{field_name} 可能包含 SQL 注入")
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            if isinstance(v, str) and contains_sql_injection(v):
+                result.add_error(f"{field_name}.{k}", f"{field_name}.{k} 可能包含 SQL 注入")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            if isinstance(item, str) and contains_sql_injection(item):
+                result.add_error(f"{field_name}[{i}]", f"{field_name}[{i}] 可能包含 SQL 注入")
+    
+    return result
+
+
+# ============== 模拟配置验证 ==============
+
+def validate_simulation_config(data: Dict[str, Any]) -> ValidationResult:
+    """验证模拟配置
+    
+    Args:
+        data: 模拟配置数据
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    required_fields = ["simulation_requirement"]
+    for field in required_fields:
+        if field not in data or not data[field]:
+            result.add_error(field, f"{field} 是必填字段")
+    
+    if "max_rounds" in data and data["max_rounds"]:
+        rounds_result = Validator.validate_integer(
+            data["max_rounds"],
+            "max_rounds",
+            min_value=1,
+            max_value=1000
+        )
+        if not rounds_result.is_valid:
+            result.errors.extend(rounds_result.errors)
+    
+    if "agent_count" in data and data["agent_count"]:
+        count_result = Validator.validate_integer(
+            data["agent_count"],
+            "agent_count",
+            min_value=1,
+            max_value=100
+        )
+        if not count_result.is_valid:
+            result.errors.extend(count_result.errors)
+    
+    return result
+
+
+def validate_graph_id(graph_id: Any, field_name: str = "graph_id") -> ValidationResult:
+    """验证图谱 ID 格式
+    
+    Args:
+        graph_id: 图谱 ID
+        field_name: 字段名
+        
+    Returns:
+        验证结果
+    """
+    result = Validator.validate_required(graph_id, field_name)
+    
+    if not result.is_valid:
+        return result
+    
+    if not isinstance(graph_id, str):
+        result.add_error(field_name, f"{field_name} 必须是字符串", graph_id)
+        return result
+    
+    if len(graph_id) > 100:
+        result.add_error(field_name, f"{field_name} 长度不能超过 100")
+        return result
+    
+    if not re.match(r'^[\w\-]+$', graph_id):
+        result.add_error(field_name, f"{field_name} 格式不正确，只允许字母、数字、下划线和连字符")
+    
+    return result
+
+
+# ============== API 请求验证 ==============
+
+def validate_api_json_request(data: Any, 
+                             required_fields: list = None,
+                             schema: Dict[str, Dict] = None) -> ValidationResult:
+    """综合验证 API JSON 请求
+    
+    Args:
+        data: 请求数据
+        required_fields: 必填字段列表
+        schema: 验证 schema
+        
+    Returns:
+        验证结果
+    """
+    result = ValidationResult()
+    
+    if data is None:
+        result.add_error("body", "请求体不能为空")
+        return result
+    
+    if not isinstance(data, dict):
+        result.add_error("body", "请求体必须是 JSON 对象")
+        return result
+    
+    if required_fields:
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                result.add_error(field, f"{field} 是必填字段")
+    
+    if schema:
+        schema_validator = SchemaValidator(schema)
+        schema_result = schema_validator.validate(data)
+        if not schema_result.is_valid:
+            result.errors.extend(schema_result.errors)
+    
+    return result

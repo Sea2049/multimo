@@ -636,6 +636,20 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
+### v1.52 (2026-01-21)
+
+**项目重命名：**
+- 🔄 全局替换：将所有 `mirofish` 字段替换为 `multimo`
+- 📝 更新范围：
+  - Logger 名称：`get_logger('multimo.xxx')`（2处）
+  - 导出文件名：`multimo_export_{simulation_id}.zip`（2处）
+  - Docker 镜像：`multimo:latest`（2处）
+  - 项目名称：`multimo-backend`（1处）
+  - API 文档示例：`multimo_xxxx`（6处）
+  - 测试数据：`multimo_test_001`（9处）
+- ✅ 验证：所有 24 处替换已完成，无遗漏
+- ✅ 测试文件已更新，确保测试用例正常运行
+
 ### v1.51 (2026-01-21)
 
 **文档更新：**

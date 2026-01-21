@@ -1,0 +1,89 @@
+{
+  "total_tests": 8,
+  "passed": 0,
+  "failed": 8,
+  "errors": [
+    "健康检查: 期望状态码 200, 实际 503",
+    "获取实体列表: 期望状态码 200, 实际 503",
+    "获取关系列表: 期望状态码 200, 实际 503",
+    "获取历史模拟: 期望状态码 200, 实际 503",
+    "列出所有报告: 期望状态码 200, 实际 503",
+    "获取不存在的图谱: 期望状态码 404, 实际 503",
+    "获取不存在的模拟: 期望状态码 404, 实际 503",
+    "创建模拟缺失参数: 期望状态码 400, 实际 503"
+  ],
+  "test_details": [
+    {
+      "name": "健康检查",
+      "method": "GET",
+      "endpoint": "/health",
+      "status_code": 503,
+      "expected_status": 200,
+      "response_time": "2.869s",
+      "passed": false
+    },
+    {
+      "name": "获取实体列表",
+      "method": "GET",
+      "endpoint": "/graph/entities",
+      "status_code": 503,
+      "expected_status": 200,
+      "response_time": "2.798s",
+      "passed": false
+    },
+    {
+      "name": "获取关系列表",
+      "method": "GET",
+      "endpoint": "/graph/relationships",
+      "status_code": 503,
+      "expected_status": 200,
+      "response_time": "2.846s",
+      "passed": false
+    },
+    {
+      "name": "获取历史模拟",
+      "method": "GET",
+      "endpoint": "/simulation/history",
+      "status_code": 503,
+      "expected_status": 200,
+      "response_time": "2.766s",
+      "passed": false
+    },
+    {
+      "name": "列出所有报告",
+      "method": "GET",
+      "endpoint": "/report/list",
+      "status_code": 503,
+      "expected_status": 200,
+      "response_time": "2.972s",
+      "passed": false
+    },
+    {
+      "name": "获取不存在的图谱",
+      "method": "GET",
+      "endpoint": "/graph/nonexistent-graph-id",
+      "status_code": 503,
+      "expected_status": 404,
+      "response_time": "2.774s",
+      "passed": false
+    },
+    {
+      "name": "获取不存在的模拟",
+      "method": "GET",
+      "endpoint": "/simulation/nonexistent-sim-id",
+      "status_code": 503,
+      "expected_status": 404,
+      "response_time": "2.737s",
+      "passed": false
+    },
+    {
+      "name": "创建模拟缺失参数",
+      "method": "POST",
+      "endpoint": "/simulation/create",
+      "status_code": 503,
+      "expected_status": 400,
+      "response_time": "2.972s",
+      "passed": false
+    }
+  ]
+}

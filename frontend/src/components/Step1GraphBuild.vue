@@ -214,30 +214,27 @@ const handleEnterEnvSetup = async () => {
     console.error('缺少项目或图谱信息')
     return
   }
-  
+
   creatingSimulation.value = true
-  
+
   try {
     const res = await createSimulation({
       project_id: props.projectData.project_id,
       graph_id: props.projectData.graph_id,
-      enable_twitter: true,
-      enable_reddit: true
+      enable_twitter: true,      
+      enable_reddit: true        
     })
-    
+
     if (res.success && res.data?.simulation_id) {
-      // 跳转到 simulation 页面
       router.push({
-        name: 'Simulation',
+        name: 'Simulation',      
         params: { simulationId: res.data.simulation_id }
       })
     } else {
       console.error('创建模拟失败:', res.error)
-      alert('创建模拟失败: ' + (res.error || '未知错误'))
     }
   } catch (err) {
     console.error('创建模拟异常:', err)
-    alert('创建模拟异常: ' + err.message)
   } finally {
     creatingSimulation.value = false
   }
