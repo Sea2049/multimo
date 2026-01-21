@@ -24,6 +24,7 @@ multimo/
 ├── REFACTORING_PLAN.md     # 重构计划文档
 ├── REFACTORING_STATUS.md   # 重构状态文档
 ├── REPORT_MODULE_TEST_REPORT.md  # 报告模块测试报告
+├── TEST_REPORT.md          # 项目全面测试与回溯报告
 ├── TESTING.md              # 测试文档
 ├── replication_log.md      # 项目复制日志
 ├── static/                 # 静态资源目录
@@ -563,21 +564,71 @@ backend/scripts/
 ```
 backend/tests/
 ├── __init__.py
-├── conftest.py              # Pytest 配置文件
+├── conftest.py              # Pytest 配置文件和 fixtures
+├── test_api_graph.py        # 图谱 API 集成测试
+├── test_api_integration.py  # API 集成测试脚本
+├── test_api_report.py       # 报告 API 集成测试
+├── test_api_simulation.py   # 模拟 API 集成测试
+├── test_auto_pilot_manager.py # 自动驾驶管理器测试
 ├── test_graph_module.py     # 图谱模块测试
+├── test_report_agent.py     # 报告智能体测试
 ├── test_report_module.py    # 报告模块测试
-└── test_simulation_runner.py # 模拟运行器测试
+├── test_simulation_runner.py # 模拟运行器测试
+└── test_utils.py            # 工具函数测试
 ```
 
 **backend/tests/conftest.py**
-- Pytest 测试配置
-- 设置测试环境路径
+- Pytest 测试配置和 fixtures
+- Flask 测试客户端 fixtures
+- Mock fixtures (LLM, Zep, OpenAI)
+- 示例数据 fixtures
+- 文件系统和配置 fixtures
+
+**backend/tests/test_api_graph.py**
+- 图谱 API 集成测试 (15+ 用例)
+- 项目管理 API 测试
+- 本体生成 API 测试
+- 图谱构建和查询 API 测试
+- 输入验证和安全测试
+
+**backend/tests/test_api_integration.py**
+- API 集成测试脚本
+- 测试所有核心 API 端点
+- 验证错误处理和响应格式
+- 生成测试结果报告
+
+**backend/tests/test_api_report.py**
+- 报告 API 集成测试 (15+ 用例)
+- 报告生成 API 测试
+- 报告状态和获取 API 测试
+- 报告对话 API 测试
+- 错误处理和验证测试
+
+**backend/tests/test_api_simulation.py**
+- 模拟 API 集成测试 (20+ 用例)
+- 模拟创建、准备、启动、停止 API 测试
+- 自动驾驶模式 API 测试
+- 并发和验证测试
+
+**backend/tests/test_auto_pilot_manager.py**
+- 自动驾驶管理器测试 (15+ 用例)
+- 状态和模式测试
+- 步骤转换测试
+- 暂停/恢复测试
+- 错误处理和持久化测试
 
 **backend/tests/test_graph_module.py**
-- 图谱模块单元测试
+- 图谱模块单元测试 (72 用例)
 - 测试实体提取功能
 - 测试关系抽取功能
 - 测试图谱构建功能
+
+**backend/tests/test_report_agent.py**
+- 报告智能体测试 (15+ 用例)
+- ReportLogger 测试
+- ReportAgent 测试
+- ReportManager 测试
+- 报告生成和对话测试
 
 **backend/tests/test_report_module.py**
 - 报告模块单元测试
@@ -590,6 +641,13 @@ backend/tests/
 - 测试模拟启动和停止
 - 测试运行状态管理
 - 使用 unittest 和 mock 进行测试
+
+**backend/tests/test_utils.py**
+- 工具函数测试 (20+ 用例)
+- 验证器测试 (validators)
+- 文件解析器测试 (file_parser)
+- LLM 客户端测试 (llm_client)
+- 重试工具测试 (retry)
 
 ### 2.4 数据目录 (backend/uploads/)
 
@@ -1057,6 +1115,41 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.51 (2026-01-21)
+
+**文档更新：**
+- 📚 更新 FRAMEWORK.md 框架架构文档
+- 📚 更新 CODE_DIRECTORY.md 代码目录文档
+- 📚 更新 README.md 项目说明文档
+- 🔧 统一版本管理，支持版本固化
+- 🚀 支持自动化 GitHub 推送
+- ✅ 添加完整的版本历史记录
+- ✅ 完善项目文档和代码目录
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 本体生成功能（生成本体结构）
+- ✅ 模拟创建和准备功能
+- ✅ 实时状态查询功能
+- ✅ 批量采访智能体功能
+- ✅ 环境管理功能
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 完善的测试用例
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 完整的单元测试覆盖
 
 ### v1.50 (2026-01-21)
 
