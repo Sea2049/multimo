@@ -71,6 +71,10 @@ backend/app/
 - 设置日志系统
 - 注册错误处理器
 - 支持配置覆盖机制
+- 安全中间件（新增）：
+  - `apply_security_headers()` - 添加安全响应头
+  - `init_rate_limiting()` - 初始化请求限流（Flask-Limiter）
+  - `init_auth()` - 初始化认证模块
 
 **backend/app/config.py**
 - 统一的配置管理类 `Config`
@@ -84,12 +88,30 @@ backend/app/
 - 使用 Pydantic Settings 进行类型安全的配置
 - 支持配置验证和环境变量自动加载
 - 提供 `get_flask_config()` 方法
+- API 认证配置（新增）：
+  - `API_KEY_ENABLED` - 是否启用认证
+  - `API_KEYS` - API Key 配置列表
+  - `API_KEY_HEADER` - 请求头名称
+  - `SIGNATURE_ENABLED` - 是否启用签名
+  - `SIGNATURE_SECRET` - 签名密钥
+- 限流配置（新增）：
+  - `RATE_LIMIT_ENABLED` - 是否启用限流
+  - `RATE_LIMIT_STORAGE` - 存储类型
+  - `RATE_LIMIT_REDIS_URL` - Redis URL
+  - `RATE_LIMIT_*` - 各端点限流策略
+- 安全响应头配置（新增）：
+  - `SECURITY_HEADERS_ENABLED` - 是否启用
+  - `X_CONTENT_TYPE_OPTIONS` - 防止 MIME 类型嗅探
+  - `X_FRAME_OPTIONS` - 防止点击劫持
+  - `X_XSS_PROTECTION` - XSS 防护
+  - `CONTENT_SECURITY_POLICY` - 内容安全策略
 
 #### 2.1.2 API 路由层 (backend/app/api/)
 
 ```
 backend/app/api/
-├── __init__.py             # API 蓝图初始化和路由注册
+├── __init__.py             # API 蓝图初始化和路由注册、认证模块初始化
+├── auth.py                 # API 认证模块（API Key、请求签名）
 ├── v1/                     # API v1 版本
 │   ├── __init__.py
 │   ├── graph.py            # 图谱操作 API 端点
@@ -97,10 +119,17 @@ backend/app/api/
 │   ├── report.py           # 报告生成 API 端点
 │   ├── interaction.py      # 交互对话 API 端点
 │   └── health.py           # 健康检查 API 端点
-├── graph.py                # 图谱操作 API（旧版，兼容性保留）
-├── simulation.py           # 模拟控制 API（旧版，兼容性保留）
-└── report.py               # 报告生成 API（旧版，兼容性保留）
 ```
+
+**backend/app/api/auth.py**
+- `APIKeyManager` - API Key 管理器
+- `generate_api_key()` - 生成安全的 API Key
+- `hash_api_key()` - 对 API Key 进行哈希处理
+- `verify_api_key()` - 验证 API Key
+- `generate_signature()` - 生成请求签名
+- `verify_signature()` - 验证请求签名
+- `require_api_key()` - 认证装饰器
+- `init_auth()` - 初始化认证模块
 
 **backend/app/api/v1/graph.py**
 - POST /api/v1/graph/ontology/generate - 生成本体（上传文档和模拟需求）
@@ -475,10 +504,23 @@ backend/app/utils/
 - 重试装饰器
 
 **backend/app/utils/validators.py**
-- 数据验证工具
-- Pydantic 模型定义
-- API 参数验证
+- 数据验证工具（ValidationType, Validator, SchemaValidator）
+- API 参数验证（validate_api_request）
 - 数据格式检查
+- XSS 防护（sanitize_string, sanitize_dict）
+- 文件上传安全验证（新增）：
+  - `validate_file_extension()` - 验证文件扩展名
+  - `validate_file_mime_type()` - 验证 MIME 类型
+  - `validate_file_content()` - 扫描危险内容
+  - `validate_file_upload()` - 综合文件验证
+  - `sanitize_filename()` - 清理文件名
+- SQL 注入检测（新增）：
+  - `contains_sql_injection()` - 检测 SQL 注入特征
+  - `validate_no_sql_injection()` - 验证无 SQL 注入
+- 业务验证（新增）：
+  - `validate_simulation_config()` - 模拟配置验证
+  - `validate_graph_id()` - 图谱 ID 验证
+  - `validate_api_json_request()` - API JSON 请求综合验证
 
 ### 2.2 脚本目录 (backend/scripts/)
 
@@ -604,6 +646,7 @@ backend/logs/
 - 核心依赖：
   - flask>=3.0.0
   - flask-cors>=6.0.0
+  - flask-limiter>=3.5.0  # API 安全限流（新增）
   - openai>=1.0.0
   - zep-cloud==3.13.0
   - camel-oasis==0.2.5
@@ -803,7 +846,19 @@ frontend/src/store/
 - 文件上传进度跟踪
 - 上传错误处理
 
-#### 3.2.7 页面视图 (frontend/src/views/)
+#### 3.2.7 Composables (frontend/src/composables/)
+
+```
+frontend/src/composables/
+└── useErrorHandler.js     # 错误处理组合式函数
+```
+
+**frontend/src/composables/useErrorHandler.js**
+- 统一错误处理逻辑
+- 错误信息展示
+- 错误状态管理
+
+#### 3.2.8 页面视图 (frontend/src/views/)
 
 ```
 frontend/src/views/
@@ -1002,6 +1057,50 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.50 (2026-01-21)
+
+**重大更新：**
+- 🎉 正式发布 v1.50 稳定版本
+- 📚 完善文档体系，更新框架文档、代码目录和 README
+- 🔧 统一版本管理，支持版本固化
+- 📦 完整的项目文档和代码目录
+- 🚀 支持自动化 GitHub 推送
+
+**文档更新：**
+- ✅ 更新 FRAMEWORK.md 框架架构文档
+- ✅ 更新 CODE_DIRECTORY.md 代码目录文档
+- ✅ 更新 README.md 项目说明文档
+- ✅ 添加完整的版本历史记录
+
+**代码目录更新：**
+- 移除不存在的 API 路由文件（graph.py, simulation.py, report.py）
+- 统一 API 路由到 v1 版本
+- 添加 composables 目录说明
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 本体生成功能（生成本体结构）
+- ✅ 模拟创建和准备功能
+- ✅ 实时状态查询功能
+- ✅ 批量采访智能体功能
+- ✅ 环境管理功能
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 完善的测试用例
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 完整的单元测试覆盖
 
 ### v1.4.0 (2026-01-20)
 

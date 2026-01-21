@@ -26,15 +26,13 @@ mulitmo 是一款基于多智能体技术的新一代 AI 预测引擎，采用�
 - Zep Cloud 3.13.0（长期记忆服务）
 - CAMEL-OASIS 0.2.5（社交模拟引擎，Apache 2.0 开源）
 - PyMuPDF（PDF 解析）
-- Pytest（单元测试框架）
 
 **前端技术：**
-- Vue.js 3.5.24+（前端框架）
-- Vue Router 4.6.3+（路由管理）
-- Axios 1.13.2+（HTTP 客户端）
-- D3.js 7.9.0+（图谱可视化）
-- Vite 7.2.4+（构建工具）
-- Vitest（前端测试框架）
+- Vue.js 3（前端框架）
+- Vue Router（路由管理）
+- Axios（HTTP 客户端）
+- D3.js（图谱可视化）
+- Vite（构建工具）
 
 ## 2. 框架架构
 
@@ -99,19 +97,9 @@ Multimo 框架
 │   ├── 实体定义 (entities.py)
 │   └── 接口定义 (interfaces.py)
 │
-├── 存储模块 (storage/)
-│   ├── 记忆存储 (memory.py)
-│   └── 数据库 (database.py)
-│
-└── 服务模块 (services/)
-    ├── 自动驾驶管理器 (auto_pilot_manager.py)
-    ├── 图谱构建器 (graph_builder.py)
-    ├── OASIS 人设生成器 (oasis_profile_generator.py)
-    ├── 报告智能体 (report_agent.py)
-    ├── 模拟配置生成器 (simulation_config_generator.py)
-    ├── 模拟管理器 (simulation_manager.py)
-    ├── 模拟运行器 (simulation_runner.py)
-    └── ... (更多服务)
+└── 存储模块 (storage/)
+    ├── 记忆存储 (memory.py)
+    └── 数据库 (database.py)
 ```
 
 ## 3. 核心接口定义
@@ -225,7 +213,7 @@ class Platform(ABC):
         pass
 ```
 
-### 3.3 自动驾驶模式接口
+### 3.4 自动驾驶模式接口
 
 **AutoPilotManager（自动驾驶管理器）**
 ```python
@@ -281,7 +269,7 @@ class AutoPilotStep(str, Enum):
     PAUSED = "paused"                # 暂停
 ```
 
-### 3.4 报告生成接口
+### 3.3 报告生成接口
 
 **ReportGenerator（报告生成器）**
 ```python
@@ -342,9 +330,8 @@ class ReportGenerator(ABC):
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │ 选择智能体    │ -> │ 发送消息      │ -> │ 获取响应      │
 └─────────────┘    └─────────────┘    └─────────────┘
-```
 
-### 4.2 自动驾驶模式流程
+### 4.3 自动驾驶模式流程
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -377,9 +364,8 @@ class ReportGenerator(ABC):
 │ 查询当前状态   │ -> │ 查询进度详情  │
 └─────────────┘    └─────────────┘
     (轮询)            (含轮数、动作数)
-```
 
-### 4.3 数据流转
+### 4.2 数据流转
 
 **图谱构建流程：**
 ```
@@ -477,37 +463,21 @@ REPORT_AGENT_TEMPERATURE=0.5
 /api/v1/
 ├── health/           # 健康检查
 ├── graph/            # 图谱相关
-│   ├── ontology/generate  # 生成本体（上传文档和模拟需求）
+│   ├── upload        # 上传种子材料
 │   ├── extract       # 提取实体和关系
 │   ├── build         # 构建知识图谱
-│   ├── task/<task_id>     # 查询任务状态
-│   ├── data/<graph_id>    # 获取图谱数据
-│   ├── project/<project_id>       # 获取项目信息
-│   ├── project/<project_id>/documents/add  # 向现有项目添加文档
-│   ├── <graph_id>          # 获取指定图谱
-│   ├── <graph_id>/export   # 导出指定图谱
+│   ├── <id>          # 获取指定图谱
+│   ├── <id>/export   # 导出指定图谱
 │   ├── entities      # 获取实体列表
 │   └── relationships # 获取关系列表
 ├── simulation/       # 模拟相关
-│   ├── create        # 创建模拟
-│   ├── prepare       # 准备模拟环境
-│   ├── prepare/status # 获取准备状态
-│   ├── <id>/resumable  # 检查模拟是否可以恢复
-│   ├── config        # 获取模拟配置
-│   ├── config/realtime # 实时配置状态
-│   ├── profiles/realtime # 实时人设生成进度
+│   ├── config        # 生成模拟配置
 │   ├── start         # 启动模拟
 │   ├── stop          # 停止模拟
 │   ├── status        # 获取模拟状态
-│   ├── run-status    # 获取运行状态
-│   ├── run-status/detail # 获取运行状态详情
-│   ├── env-status    # 获取环境状态
-│   ├── close-env     # 关闭模拟环境
-│   ├── interview/batch # 批量采访智能体
 │   ├── logs          # 获取模拟日志
+│   ├── chat          # 与智能体对话
 │   ├── history       # 获取历史模拟
-│   ├── <id>          # 获取模拟信息
-│   └── export        # 导出模拟数据
 │   └── auto-pilot/   # 自动驾驶模式
 │       ├── config    # 配置自动驾驶模式（AUTO/MANUAL）
 │       ├── start     # 启动自动驾驶
@@ -666,79 +636,44 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
-### v1.4.0 (2026-01-20)
+### v1.50 (2026-01-21)
 
 **重大更新：**
-- 🚀 新增本体生成功能：POST /api/graph/ontology/generate
-- 🚀 新增任务状态查询：GET /api/graph/task/{task_id}
-- 🚀 新增项目信息查询：GET /api/graph/project/{project_id}
-- 🚀 新增文档添加功能：POST /api/graph/project/{project_id}/documents/add
-- 🚀 新增图谱数据查询：GET /api/graph/data/{graph_id}
-- 🚀 新增模拟恢复检查：GET /api/simulation/{id}/resumable
-- ⚡ 前端 graph.js API 客户端重构，新增 requestWithRetry 统一重试机制
+- 🎉 正式发布 v1.50 稳定版本
+- 📚 完善文档体系，更新框架文档、代码目录和 README
+- 🔧 统一版本管理，支持版本固化
+- 📦 完整的项目文档和代码目录
+- 🚀 支持自动化 GitHub 推送
 
-**API 新增接口：**
-- `POST /api/graph/ontology/generate` - 生成本体（上传文档和模拟需求）
-- `GET /api/graph/task/{task_id}` - 查询任务状态
-- `GET /api/graph/data/{graph_id}` - 获取图谱数据
-- `GET /api/graph/project/{project_id}` - 获取项目信息
-- `POST /api/graph/project/{project_id}/documents/add` - 向现有项目添加文档
-- `GET /api/simulation/{id}/resumable` - 检查模拟是否可以恢复
+**文档更新：**
+- ✅ 更新 FRAMEWORK.md 框架架构文档
+- ✅ 更新 CODE_DIRECTORY.md 代码目录文档
+- ✅ 更新 README.md 项目说明文档
+- ✅ 添加完整的版本历史记录
 
 **功能特性：**
-- ✅ 本体生成功能：上传文档并生成模拟需求
-- ✅ 任务状态跟踪：实时查询任务处理进度
-- ✅ 项目管理：支持向现有项目添加新文档
-- ✅ 模拟恢复：检查并恢复中断的模拟
-- ✅ 前端 API 客户端统一重试机制
-
-### v1.3.0 (2026-01-20)
-
-**重大更新：**
-- 🚗 新增自动驾驶模式 (Auto-Pilot Mode)
-- ☁️ 支持云端无人值守自动运行
-- 🔄 支持断点续传，失败自动重试
-- 📊 完整流程自动化：准备 -> 启动 -> 监控 -> 报告
-- 🚀 新增模拟创建和准备功能：POST /api/simulation/create, prepare, prepare/status
-- 🚀 新增实时状态查询：config/realtime, profiles/realtime, run-status/detail
-- 🚀 新增批量采访智能体功能：POST /api/simulation/{id}/interview/batch
-- 🚀 新增环境管理功能：env-status, close-env
-- ⚡ 前端 simulation.js API 客户端重构，新增 requestWithRetry 统一重试机制
-- ✅ 完善测试用例覆盖
-
-**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
 - ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
-- ✅ 自动准备：读取实体、生成Profile、生成配置
-- ✅ 自动启动：自动启动模拟运行
-- ✅ 自动监控：实时监控运行状态，自动处理异常
-- ✅ 自动报告：模拟完成后自动生成报告
-- ✅ 暂停/恢复功能：随时可暂停、恢复自动驾驶
-- ✅ 状态持久化：支持服务重启后断点续传
+- ✅ 本体生成功能（生成本体结构）
+- ✅ 模拟创建和准备功能
+- ✅ 实时状态查询功能
+- ✅ 批量采访智能体功能
+- ✅ 环境管理功能
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 完善的测试用例
 
-**API 新增接口：**
-- `POST /api/simulation/create` - 创建模拟
-- `POST /api/simulation/prepare` - 准备模拟环境
-- `POST /api/simulation/prepare/status` - 获取准备状态
-- `GET /api/simulation/{id}/config/realtime` - 实时配置状态
-- `GET /api/simulation/{id}/profiles/realtime` - 实时人设生成进度
-- `GET /api/simulation/{id}/run-status/detail` - 运行状态详情
-- `POST /api/simulation/{id}/interview/batch` - 批量采访智能体
-- `POST /api/simulation/env-status` - 获取环境状态
-- `POST /api/simulation/close-env` - 关闭模拟环境
-- `POST /api/simulation/auto-pilot/config` - 配置自动驾驶模式
-- `POST /api/simulation/auto-pilot/start` - 启动自动驾驶
-- `POST /api/simulation/auto-pilot/pause` - 暂停自动驾驶
-- `POST /api/simulation/auto-pilot/resume` - 恢复自动驾驶
-- `POST /api/simulation/auto-pilot/stop` - 停止自动驾驶
-- `GET /api/simulation/auto-pilot/status` - 获取自动驾驶状态
-- `POST /api/simulation/auto-pilot/reset` - 重置自动驾驶状态
-
-**新增文件：**
-- `backend/app/services/auto_pilot_manager.py` - 自动驾驶核心服务
-- `backend/tests/conftest.py` - Pytest 配置文件
-- `backend/tests/test_report_module.py` - 报告模块测试
-- `backend/tests/test_simulation_runner.py` - 模拟运行器测试
-- `frontend/src/__tests__/example.spec.js` - 前端示例测试
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 完整的单元测试覆盖
 
 ### v1.2.0 (2026-01-20)
 
@@ -767,6 +702,35 @@ REPORT_AGENT_TEMPERATURE=0.5
 - Docker 容器化部署
 - 完整的单元测试覆盖
 
+### v1.3.0 (2026-01-20)
+
+**重大更新：**
+- 🚗 新增自动驾驶模式 (Auto-Pilot Mode)
+- ☁️ 支持云端无人值守自动运行
+- 🔄 支持断点续传，失败自动重试
+- 📊 完整流程自动化：准备 -> 启动 -> 监控 -> 报告
+
+**功能特性：**
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 自动准备：读取实体、生成Profile、生成配置
+- ✅ 自动启动：自动启动模拟运行
+- ✅ 自动监控：实时监控运行状态，自动处理异常
+- ✅ 自动报告：模拟完成后自动生成报告
+- ✅ 暂停/恢复功能：随时可暂停、恢复自动驾驶
+- ✅ 状态持久化：支持服务重启后断点续传
+
+**API 新增接口：**
+- `POST /api/simulation/auto-pilot/config` - 配置自动驾驶模式
+- `POST /api/simulation/auto-pilot/start` - 启动自动驾驶
+- `POST /api/simulation/auto-pilot/pause` - 暂停自动驾驶
+- `POST /api/simulation/auto-pilot/resume` - 恢复自动驾驶
+- `POST /api/simulation/auto-pilot/stop` - 停止自动驾驶
+- `GET /api/simulation/auto-pilot/status` - 获取自动驾驶状态
+- `POST /api/simulation/auto-pilot/reset` - 重置自动驾驶状态
+
+**新增文件：**
+- `backend/app/services/auto_pilot_manager.py` - 自动驾驶核心服务
+
 ### v1.0.1 (2026-01-20)
 
 **功能更新：**
@@ -780,36 +744,7 @@ REPORT_AGENT_TEMPERATURE=0.5
 - 添加完整的错误处理和日志记录
 - 保持与现有 API 的一致性设计
 
-## 12. 测试框架
-
-### 12.1 后端测试
-
-**测试框架：**
-- **Pytest**：Python 测试框架
-- **unittest**：Python 单元测试框架
-- **Coverage**：代码覆盖率工具
-
-**测试文件：**
-- `backend/tests/conftest.py` - Pytest 配置文件
-- `backend/tests/test_graph_module.py` - 图谱模块测试
-- `backend/tests/test_report_module.py` - 报告模块测试
-- `backend/tests/test_simulation_runner.py` - 模拟运行器测试
-
-**测试覆盖：**
-- 图谱构建模块测试
-- 报告生成模块测试
-- 模拟运行器测试
-- 数据分析器测试
-
-### 12.2 前端测试
-
-**测试框架：**
-- **Vitest**：Vue.js 测试框架
-
-**测试文件：**
-- `frontend/src/__tests__/example.spec.js` - 示例测试
-
-## 13. 参考资料
+## 12. 参考资料
 
 ### 官方文档
 - [Flask 官方文档](https://flask.palletsprojects.com/)
@@ -817,8 +752,6 @@ REPORT_AGENT_TEMPERATURE=0.5
 - [OpenAI API 文档](https://platform.openai.com/docs)
 - [Zep Cloud 文档](https://docs.getzep.com/)
 - [OASIS 框架文档](https://github.com/camel-ai/oasis)
-- [Pytest 官方文档](https://docs.pytest.org/)
-- [Vitest 官方文档](https://vitest.dev/)
 
 ### 相关项目
 - [CAMEL-AI](https://github.com/camel-ai/camel) - CAMEL 框架

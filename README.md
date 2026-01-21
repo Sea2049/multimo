@@ -14,7 +14,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/blob/main/LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/Multimo)
-[![Version](https://img.shields.io/badge/version-v1.4.0-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
+[![Version](https://img.shields.io/badge/version-v1.50-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -331,6 +331,45 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 </a>
 
 ## 📝 更新日志
+
+### v1.50 (2026-01-21)
+
+**重大更新：**
+- 🎉 正式发布 v1.50 稳定版本
+- 📚 完善文档体系，更新框架文档、代码目录和 README
+- 🔧 统一版本管理，支持版本固化
+- 📦 完整的项目文档和代码目录
+- 🚀 支持自动化 GitHub 推送
+
+**文档更新：**
+- ✅ 更新 FRAMEWORK.md 框架架构文档
+- ✅ 更新 CODE_DIRECTORY.md 代码目录文档
+- ✅ 更新 README.md 项目说明文档
+- ✅ 添加完整的版本历史记录
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 本体生成功能（生成本体结构）
+- ✅ 模拟创建和准备功能
+- ✅ 实时状态查询功能
+- ✅ 批量采访智能体功能
+- ✅ 环境管理功能
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 完善的测试用例
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 完整的单元测试覆盖
 
 ### v1.4.0 (2026-01-20)
 
