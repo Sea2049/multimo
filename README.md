@@ -1,18 +1,6 @@
 
 
-简洁通用的群体智能引擎，预测万物
-</br>
-<em>A Simple and Universal Swarm Intelligence Engine, Predicting Anything</em>
 
-[![GitHub Stars](https://img.shields.io/github/stars/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/stargazers)
-[![GitHub Watchers](https://img.shields.io/github/watchers/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/watchers)
-[![GitHub Forks](https://img.shields.io/github/forks/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/network)
-[![GitHub Issues](https://img.shields.io/github/issues/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/pulls)
-
-[![GitHub License](https://img.shields.io/github/license/666ghj/Multimo?style=flat-square)](https://github.com/666ghj/Multimo/blob/main/LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/Multimo)
-[![Version](https://img.shields.io/badge/version-v1.51-green.svg?style=flat-square)](https://github.com/666ghj/Multimo)
 
 [English](./README-EN.md) | [中文文档](./README.md)
 
@@ -34,34 +22,6 @@ Multimo 旨在构建一个映射现实世界的群体智能镜像——通过捕
 
 从严谨的预测分析到轻松的趣味仿真，Multimo 让每一个“假如”都有迹可循，让看见未来、探索万物成为触手可及的可能。
 
-## 📸 系统截图
-
-<div align="center">
-<table>
-<tr>
-<td><img src="./static/image/Screenshot/运行截图1.png" alt="截图1" width="100%"/></td>
-<td><img src="./static/image/Screenshot/运行截图2.png" alt="截图2" width="100%"/></td>
-</tr>
-<tr>
-<td><img src="./static/image/Screenshot/运行截图3.png" alt="截图3" width="100%"/></td>
-<td><img src="./static/image/Screenshot/运行截图4.png" alt="截图4" width="100%"/></td>
-</tr>
-<tr>
-<td><img src="./static/image/Screenshot/运行截图5.png" alt="截图5" width="100%"/></td>
-<td><img src="./static/image/Screenshot/运行截图6.png" alt="截图6" width="100%"/></td>
-</tr>
-</table>
-</div>
-
-## 🎬 演示视频
-
-<div align="center">
-<a href="https://www.bilibili.com/video/BV1VYBsBHEMY/" target="_blank"><img src="./static/image/武大模拟演示封面.png" alt="Multimo Demo Video" width="75%"/></a>
-
-点击图片查看使用微舆BettaFish生成的《武大舆情报告》进行预测的完整演示视频
-</div>
-
-> 红楼梦结局模拟推演演示视频、金融方向预测示例演示视频等陆续更新中...
 
 ## 🔄 工作流程
 
