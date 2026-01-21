@@ -1,6 +1,4 @@
-<div align="center">
 
-<img src="./static/image/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="75%"/>
 
 简洁通用的群体智能引擎，预测万物
 </br>
@@ -29,12 +27,12 @@
 
 ### 我们的愿景
 
-Multimo 致力于打造映射现实的群体智能镜像，通过捕捉个体互动引发的群体涌现，突破传统预测的局限：
+Multimo 旨在构建一个映射现实世界的群体智能镜像——通过捕捉个体之间的互动，揭示由此涌现的集体行为规律，从而超越传统预测方法的边界。
 
-- **于宏观**：我们是决策者的预演实验室，让政策与公关在零风险中试错
-- **于微观**：我们是个人用户的创意沙盘，无论是推演小说结局还是探索脑洞，皆可有趣、好玩、触手可及
+- **宏观层面**：我们为决策者打造一个零风险的“预演实验室”，让政策制定、公共沟通等重大举措在虚拟环境中先行试错、优化迭代。
+- **微观层面**：我们为每一位用户搭建一个充满想象力的“创意沙盘”——无论是推演小说情节的走向、模拟社交实验，还是探索天马行空的“如果”场景，都能轻松上手、趣味十足。
 
-从严肃预测到趣味仿真，我们让每一个如果都能看见结果，让预测万物成为可能。
+从严谨的预测分析到轻松的趣味仿真，Multimo 让每一个“假如”都有迹可循，让看见未来、探索万物成为触手可及的可能。
 
 ## 📸 系统截图
 
@@ -319,16 +317,6 @@ Multimo 的仿真引擎由 **[OASIS](https://github.com/camel-ai/oasis)** 驱动
 本项目采用 [MIT License](LICENSE) 许可证。
 
 OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
-
-## 📈 项目统计
-
-<a href="https://www.star-history.com/#666ghj/Multimo&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=666ghj/Multimo&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=666ghj/Multimo&type=date&theme=light&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=666ghj/Multimo&type=date=legend=top-left" />
- </picture>
-</a>
 
 ## 📝 更新日志
 
