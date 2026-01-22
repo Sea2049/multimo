@@ -1,0 +1,39 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: multimo-backend
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      # 持久化上传文件
+      - ./backend/uploads:/app/uploads
+      # 持久化日志
+      - ./backend/logs:/app/logs
+      # 持久化数据库 (SQLite)
+      - ./backend/tasks.db:/app/tasks.db
+      - ./backend/storage.db:/app/storage.db
+    expose:
+      - "5001"
+    networks:
+      - multimo-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: multimo-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - multimo-network
+
+networks:
+  multimo-network:
+    driver: bridge
