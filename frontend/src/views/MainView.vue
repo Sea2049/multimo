@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
@@ -481,6 +481,12 @@ watch(currentPhase, (newPhase) => {
 
 onMounted(() => {
   initProject()
+})
+
+// 确保组件卸载前和卸载时都清理定时器（双重保护）
+onBeforeUnmount(() => {
+  stopPolling()
+  stopGraphPolling()
 })
 
 onUnmounted(() => {

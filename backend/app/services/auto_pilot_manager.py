@@ -156,17 +156,20 @@ class AutoPilotManager:
     # 状态文件存储目录
     STATE_DIR = os.path.join(get_config().SIMULATION_DATA_DIR, 'auto_pilot')
     
+    # 类级别线程锁，保护共享状态（线程安全）
+    _lock = threading.RLock()
+    
     def __init__(self):
         # 确保目录存在
         os.makedirs(self.STATE_DIR, exist_ok=True)
         
-        # 内存中的状态缓存
+        # 内存中的状态缓存（需要加锁保护）
         self._states: Dict[str, AutoPilotState] = {}
         
-        # 正在运行的自动驾驶任务
+        # 正在运行的自动驾驶任务（需要加锁保护）
         self._running_tasks: Dict[str, threading.Thread] = {}
         
-        # 监控线程
+        # 监控线程（需要加锁保护）
         self._monitor_threads: Dict[str, threading.Thread] = {}
     
     def _get_state_file(self, simulation_id: str) -> str:
@@ -174,27 +177,37 @@ class AutoPilotManager:
         return os.path.join(self.STATE_DIR, f"{simulation_id}_autopilot.json")
     
     def _save_state(self, state: AutoPilotState):
-        """保存状态到文件"""
-        state_file = self._get_state_file(state.simulation_id)
-        with open(state_file, 'w', encoding='utf-8') as f:
-            json.dump(state.to_dict(), f, ensure_ascii=False, indent=2)
-        self._states[state.simulation_id] = state
+        """保存状态到文件（线程安全）"""
+        with self._lock:
+            state_file = self._get_state_file(state.simulation_id)
+            try:
+                with open(state_file, 'w', encoding='utf-8') as f:
+                    json.dump(state.to_dict(), f, ensure_ascii=False, indent=2)
+                self._states[state.simulation_id] = state
+            except IOError as e:
+                logger.error(f"Failed to save auto-pilot state: {e}")
+                raise
     
     def _load_state(self, simulation_id: str) -> Optional[AutoPilotState]:
-        """从文件加载状态"""
-        if simulation_id in self._states:
-            return self._states[simulation_id]
-        
-        state_file = self._get_state_file(simulation_id)
-        if not os.path.exists(state_file):
-            return None
-        
-        with open(state_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        state = AutoPilotState.from_dict(data)
-        self._states[simulation_id] = state
-        return state
+        """从文件加载状态（线程安全）"""
+        with self._lock:
+            if simulation_id in self._states:
+                return self._states[simulation_id]
+            
+            state_file = self._get_state_file(simulation_id)
+            if not os.path.exists(state_file):
+                return None
+            
+            try:
+                with open(state_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                state = AutoPilotState.from_dict(data)
+                self._states[simulation_id] = state
+                return state
+            except (IOError, json.JSONDecodeError) as e:
+                logger.error(f"Failed to load auto-pilot state: {e}")
+                return None
     
     def set_mode(self, simulation_id: str, mode: AutoPilotMode) -> AutoPilotState:
         """

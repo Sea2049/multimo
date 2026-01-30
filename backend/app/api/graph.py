@@ -12,7 +12,7 @@ from functools import wraps
 from flask import request, jsonify
 
 from . import graph_bp
-from . import get_error_response, ErrorCode
+from . import get_error_response, make_error_response, ErrorCode
 from .auth import require_api_key
 from ..config_new import get_config
 from ..services.ontology_generator import OntologyGenerator
@@ -254,11 +254,10 @@ def generate_ontology():
         except Exception as llm_error:
             logger.error(f"LLM 调用失败: {str(llm_error)}")
             logger.error(traceback.format_exc())
-            return jsonify({
-                "success": False,
-                "error": f"LLM 调用失败: {str(llm_error)}",
-                "traceback": traceback.format_exc()
-            }), 500
+            return jsonify(make_error_response(
+                llm_error, 500, ErrorCode.LLM_ERROR,
+                f"LLM 调用失败: {str(llm_error)}"
+            )), 500
         
         # 保存本体到项目
         entity_count = len(ontology.get("entity_types", []))
@@ -287,11 +286,7 @@ def generate_ontology():
         })
         
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== 接口2：构建图谱 ==============
@@ -537,11 +532,14 @@ def build_graph():
                 project.error = str(e)
                 ProjectManager.save_project(project)
                 
+                # 内部任务存储可以保留完整错误信息
+                config = get_config()
+                error_detail = traceback.format_exc() if config.DEBUG else str(e)
                 task_manager.update_task(
                     task_id,
                     status=TaskStatus.FAILED,
                     message=f"构建失败: {str(e)}",
-                    error=traceback.format_exc()
+                    error=error_detail
                 )
         
         # 启动后台线程
@@ -558,11 +556,7 @@ def build_graph():
         })
         
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== 任务查询接口 ==============
@@ -657,8 +651,4 @@ def delete_graph(graph_id: str):
         })
         
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500

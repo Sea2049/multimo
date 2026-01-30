@@ -9,7 +9,7 @@ import traceback
 from flask import request, jsonify, send_file
 
 from . import simulation_bp
-from . import get_error_response, ErrorCode
+from . import get_error_response, make_error_response, ErrorCode
 from .auth import require_api_key
 from ..config_new import get_config
 from ..services.zep_entity_reader import ZepEntityReader
@@ -93,11 +93,7 @@ def get_graph_entities(graph_id: str):
         
     except Exception as e:
         logger.error(f"获取图谱实体失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/entities/<graph_id>/<entity_uuid>', methods=['GET'])
@@ -127,11 +123,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
         
     except Exception as e:
         logger.error(f"获取实体详情失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/entities/<graph_id>/by-type/<entity_type>', methods=['GET'])
@@ -165,11 +157,7 @@ def get_entities_by_type(graph_id: str, entity_type: str):
         
     except Exception as e:
         logger.error(f"获取实体失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== 模拟管理接口 ==============
@@ -242,11 +230,7 @@ def create_simulation():
         
     except Exception as e:
         logger.error(f"创建模拟失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 def _check_simulation_prepared(simulation_id: str) -> tuple:
@@ -660,11 +644,7 @@ def prepare_simulation():
         
     except Exception as e:
         logger.error(f"启动准备任务失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/prepare/status', methods=['POST'])
@@ -806,11 +786,7 @@ def get_simulation(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取模拟状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/list', methods=['GET'])
@@ -835,11 +811,7 @@ def list_simulations():
         
     except Exception as e:
         logger.error(f"列出模拟失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 def _get_report_id_for_simulation(simulation_id: str) -> str:
@@ -1008,11 +980,7 @@ def get_simulation_history():
         
     except Exception as e:
         logger.error(f"获取历史模拟失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/profiles', methods=['GET'])
@@ -1046,11 +1014,7 @@ def get_simulation_profiles(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取Profile失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/profiles/realtime', methods=['GET'])
@@ -1158,11 +1122,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
         
     except Exception as e:
         logger.error(f"实时获取Profile失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/config/realtime', methods=['GET'])
@@ -1280,11 +1240,7 @@ def get_simulation_config_realtime(simulation_id: str):
         
     except Exception as e:
         logger.error(f"实时获取Config失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/config', methods=['GET'])
@@ -1316,11 +1272,7 @@ def get_simulation_config(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取配置失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/config/download', methods=['GET'])
@@ -1345,11 +1297,7 @@ def download_simulation_config(simulation_id: str):
         
     except Exception as e:
         logger.error(f"下载配置失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/script/<script_name>/download', methods=['GET'])
@@ -1397,11 +1345,7 @@ def download_simulation_script(script_name: str):
         
     except Exception as e:
         logger.error(f"下载脚本失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== Profile生成接口（独立使用） ==============
@@ -1471,11 +1415,7 @@ def generate_profiles():
         
     except Exception as e:
         logger.error(f"生成Profile失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== 模拟运行控制接口 ==============
@@ -1670,11 +1610,7 @@ def start_simulation():
         
     except Exception as e:
         logger.error(f"启动模拟失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/stop', methods=['POST'])
@@ -1729,11 +1665,7 @@ def stop_simulation():
         
     except Exception as e:
         logger.error(f"停止模拟失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/resumable', methods=['GET'])
@@ -1834,11 +1766,7 @@ def check_resumable(simulation_id: str):
         
     except Exception as e:
         logger.error(f"检查可恢复状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 from ..services.export_service import ExportService
@@ -1873,11 +1801,7 @@ def export_simulation_data(simulation_id: str):
         
     except Exception as e:
         logger.error(f"导出数据失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 @simulation_bp.route('/<simulation_id>/run-status', methods=['GET'])
 def get_run_status(simulation_id: str):
     """
@@ -1929,11 +1853,7 @@ def get_run_status(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取运行状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/run-status/detail', methods=['GET'])
@@ -2030,11 +1950,7 @@ def get_run_status_detail(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取详细状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/actions', methods=['GET'])
@@ -2084,11 +2000,7 @@ def get_simulation_actions(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取动作历史失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/timeline', methods=['GET'])
@@ -2124,11 +2036,7 @@ def get_simulation_timeline(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取时间线失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/agent-stats', methods=['GET'])
@@ -2151,11 +2059,7 @@ def get_agent_stats(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取Agent统计失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== 数据库查询接口 ==============
@@ -2231,11 +2135,7 @@ def get_simulation_posts(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取帖子失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>/comments', methods=['GET'])
@@ -2306,11 +2206,7 @@ def get_simulation_comments(simulation_id: str):
         
     except Exception as e:
         logger.error(f"获取评论失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== Interview 采访接口 ==============
@@ -2437,11 +2333,7 @@ def interview_agent():
         
     except Exception as e:
         logger.error(f"Interview失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/interview/batch', methods=['POST'])
@@ -2575,11 +2467,7 @@ def interview_agents_batch():
 
     except Exception as e:
         logger.error(f"批量Interview失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/interview/all', methods=['POST'])
@@ -2678,11 +2566,7 @@ def interview_all_agents():
 
     except Exception as e:
         logger.error(f"全局Interview失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/interview/history', methods=['POST'])
@@ -2750,11 +2634,7 @@ def get_interview_history():
 
     except Exception as e:
         logger.error(f"获取Interview历史失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/env-status', methods=['POST'])
@@ -2815,11 +2695,7 @@ def get_env_status():
 
     except Exception as e:
         logger.error(f"获取环境状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/close-env', methods=['POST'])
@@ -2885,11 +2761,7 @@ def close_simulation_env():
         
     except Exception as e:
         logger.error(f"关闭环境失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 # ============== 自动驾驶模式接口 ==============
@@ -2967,11 +2839,7 @@ def config_auto_pilot():
         
     except Exception as e:
         logger.error(f"配置自动驾驶模式失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/auto-pilot/start', methods=['POST'])
@@ -3068,11 +2936,7 @@ def start_auto_pilot():
         
     except Exception as e:
         logger.error(f"启动自动驾驶失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/auto-pilot/pause', methods=['POST'])
@@ -3128,11 +2992,7 @@ def pause_auto_pilot():
         
     except Exception as e:
         logger.error(f"暂停自动驾驶失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/auto-pilot/resume', methods=['POST'])
@@ -3188,11 +3048,7 @@ def resume_auto_pilot():
         
     except Exception as e:
         logger.error(f"恢复自动驾驶失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/auto-pilot/stop', methods=['POST'])
@@ -3247,11 +3103,7 @@ def stop_auto_pilot():
         
     except Exception as e:
         logger.error(f"停止自动驾驶失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/auto-pilot/status', methods=['POST'])
@@ -3306,11 +3158,7 @@ def get_auto_pilot_status():
         
     except Exception as e:
         logger.error(f"获取自动驾驶状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/auto-pilot/reset', methods=['POST'])
@@ -3357,8 +3205,4 @@ def reset_auto_pilot():
         
     except Exception as e:
         logger.error(f"重置自动驾驶状态失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500

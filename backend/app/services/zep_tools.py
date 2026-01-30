@@ -415,10 +415,14 @@ class ZepToolsService:
         if not self.api_key.startswith('z_'):
             logger.warning(f"Zep API Key 格式可能无效，期望以 'z_' 开头，当前 Key: {self.api_key[:15]}...")
         
+        # 获取 API 超时配置
+        self.timeout = config.ZEP_API_TIMEOUT
+        
+        # 创建 Zep 客户端
         self.client = Zep(api_key=self.api_key)
         # LLM客户端用于InsightForge生成子问题
         self._llm_client = llm_client
-        logger.info("ZepToolsService 初始化完成")
+        logger.info(f"ZepToolsService 初始化完成，超时设置: {self.timeout}s")
     
     @property
     def llm(self) -> LLMClient:

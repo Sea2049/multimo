@@ -210,7 +210,7 @@ def retry_with_policy(policy: RetryPolicy,
 
 def retry_circuit_breaker(max_failures: int = 5,
                          recovery_timeout: float = 60.0):
-    """断路器模式的重试装饰器
+    """断路器模式的重试装饰器（线程安全）
     
     当连续失败次数达到阈值时，暂时停止重试
     
@@ -221,54 +221,66 @@ def retry_circuit_breaker(max_failures: int = 5,
     Returns:
         装饰器函数
     """
+    import threading
+    
     def decorator(func: Callable) -> Callable:
-        # 断路器状态
-        failure_count = 0
-        last_failure_time = None
-        circuit_open = False
+        # 使用类封装状态，确保线程安全
+        class CircuitBreakerState:
+            """断路器状态封装类（线程安全）"""
+            def __init__(self):
+                self.lock = threading.Lock()
+                self.failure_count = 0
+                self.last_failure_time = None
+                self.circuit_open = False
+        
+        state = CircuitBreakerState()
         
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
-            nonlocal failure_count, last_failure_time, circuit_open
-            
-            # 检查断路器是否开启
-            if circuit_open:
-                # 检查是否可以尝试恢复
-                if last_failure_time and time.time() - last_failure_time > recovery_timeout:
-                    logger.info(f"断路器尝试恢复: {func.__name__}")
-                    circuit_open = False
-                    failure_count = 0
-                else:
-                    raise RuntimeError(
-                        f"断路器已开启，{func.__name__} 暂时不可用。"
-                        f"预计 {recovery_timeout:.0f} 秒后恢复"
-                    )
+            # 使用锁保护状态检查和更新
+            with state.lock:
+                # 检查断路器是否开启
+                if state.circuit_open:
+                    # 检查是否可以尝试恢复
+                    if state.last_failure_time and time.time() - state.last_failure_time > recovery_timeout:
+                        logger.info(f"断路器尝试恢复: {func.__name__}")
+                        state.circuit_open = False
+                        state.failure_count = 0
+                    else:
+                        raise RuntimeError(
+                            f"断路器已开启，{func.__name__} 暂时不可用。"
+                            f"预计 {recovery_timeout:.0f} 秒后恢复"
+                        )
             
             try:
+                # 函数执行不在锁内，避免长时间持有锁
                 result = func(*args, **kwargs)
                 
                 # 成功，重置断路器
-                if circuit_open or failure_count > 0:
-                    logger.info(f"函数 {func.__name__} 执行成功，重置断路器")
-                circuit_open = False
-                failure_count = 0
+                with state.lock:
+                    if state.circuit_open or state.failure_count > 0:
+                        logger.info(f"函数 {func.__name__} 执行成功，重置断路器")
+                    state.circuit_open = False
+                    state.failure_count = 0
                 
                 return result
                 
             except Exception as e:
-                failure_count += 1
-                last_failure_time = time.time()
-                
-                logger.error(
-                    f"函数 {func.__name__} 执行失败（第 {failure_count} 次连续失败）。错误: {e}"
-                )
-                
-                # 检查是否需要开启断路器
-                if failure_count >= max_failures:
-                    circuit_open = True
-                    logger.warning(
-                        f"断路器已开启：{func.__name__}，连续失败 {failure_count} 次"
+                # 失败，更新状态
+                with state.lock:
+                    state.failure_count += 1
+                    state.last_failure_time = time.time()
+                    
+                    logger.error(
+                        f"函数 {func.__name__} 执行失败（第 {state.failure_count} 次连续失败）。错误: {e}"
                     )
+                    
+                    # 检查是否需要开启断路器
+                    if state.failure_count >= max_failures:
+                        state.circuit_open = True
+                        logger.warning(
+                            f"断路器已开启：{func.__name__}，连续失败 {state.failure_count} 次"
+                        )
                 
                 raise
         

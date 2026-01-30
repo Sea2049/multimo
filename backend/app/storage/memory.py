@@ -1,12 +1,13 @@
 # 记忆存储模块
 
+import threading
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from app.core.interfaces import MemoryStorage
 
 
 class InMemoryStorage(MemoryStorage):
-    """内存存储实现"""
+    """内存存储实现（线程安全）"""
     
     def __init__(self, max_size: int = 10000, ttl_seconds: int = None):
         """初始化内存存储
@@ -15,41 +16,50 @@ class InMemoryStorage(MemoryStorage):
             max_size: 最大存储条目数
             ttl_seconds: 数据过期时间（秒），None 表示不过期
         """
+        # 线程锁，保护共享状态
+        self._lock = threading.RLock()
         self._storage: Dict[str, Dict[str, Any]] = {}
         self._timestamps: Dict[str, datetime] = {}
         self._max_size = max_size
         self._ttl_seconds = ttl_seconds
     
     def store(self, key: str, value: Any) -> bool:
-        """存储数据"""
-        try:
-            # 检查存储容量
-            if len(self._storage) >= self._max_size and key not in self._storage:
-                self._evict_oldest()
-            
-            # 存储数据
-            self._storage[key] = {"value": value, "metadata": {}}
-            self._timestamps[key] = datetime.utcnow()
-            
-            return True
-        except Exception as e:
-            print(f"Error storing data: {e}")
-            return False
+        """存储数据（线程安全）"""
+        with self._lock:
+            try:
+                # 检查存储容量
+                if len(self._storage) >= self._max_size and key not in self._storage:
+                    self._evict_oldest()
+                
+                # 存储数据
+                self._storage[key] = {"value": value, "metadata": {}}
+                self._timestamps[key] = datetime.utcnow()
+                
+                return True
+            except Exception as e:
+                print(f"Error storing data: {e}")
+                return False
     
     def retrieve(self, key: str) -> Optional[Any]:
-        """检索数据"""
-        # 检查过期
-        if self._is_expired(key):
-            self.delete(key)
+        """检索数据（线程安全）"""
+        with self._lock:
+            # 检查过期
+            if self._is_expired(key):
+                self._delete_internal(key)
+                return None
+            
+            entry = self._storage.get(key)
+            if entry:
+                return entry["value"]
             return None
-        
-        entry = self._storage.get(key)
-        if entry:
-            return entry["value"]
-        return None
     
     def delete(self, key: str) -> bool:
-        """删除数据"""
+        """删除数据（线程安全）"""
+        with self._lock:
+            return self._delete_internal(key)
+    
+    def _delete_internal(self, key: str) -> bool:
+        """内部删除方法（调用者需持有锁）"""
         try:
             self._storage.pop(key, None)
             self._timestamps.pop(key, None)
@@ -59,63 +69,69 @@ class InMemoryStorage(MemoryStorage):
             return False
     
     def search(self, query: str) -> List[Any]:
-        """搜索数据"""
-        results = []
-        
-        for key, entry in self._storage.items():
-            # 跳过过期数据
-            if self._is_expired(key):
-                continue
+        """搜索数据（线程安全）"""
+        with self._lock:
+            results = []
             
-            value = entry["value"]
+            for key, entry in list(self._storage.items()):
+                # 跳过过期数据
+                if self._is_expired(key):
+                    continue
+                
+                value = entry["value"]
+                
+                # 简单的字符串匹配搜索
+                if self._matches_query(value, query):
+                    results.append({
+                        "key": key,
+                        "value": value,
+                        "metadata": entry["metadata"]
+                    })
             
-            # 简单的字符串匹配搜索
-            if self._matches_query(value, query):
-                results.append({
-                    "key": key,
-                    "value": value,
-                    "metadata": entry["metadata"]
-                })
-        
-        return results
+            return results
     
     def store_with_metadata(self, key: str, value: Any, 
                            metadata: Dict[str, Any]) -> bool:
-        """存储数据并附加元数据"""
-        try:
-            if len(self._storage) >= self._max_size and key not in self._storage:
-                self._evict_oldest()
-            
-            self._storage[key] = {
-                "value": value,
-                "metadata": metadata
-            }
-            self._timestamps[key] = datetime.utcnow()
-            
-            return True
-        except Exception as e:
-            print(f"Error storing data with metadata: {e}")
-            return False
+        """存储数据并附加元数据（线程安全）"""
+        with self._lock:
+            try:
+                if len(self._storage) >= self._max_size and key not in self._storage:
+                    self._evict_oldest()
+                
+                self._storage[key] = {
+                    "value": value,
+                    "metadata": metadata
+                }
+                self._timestamps[key] = datetime.utcnow()
+                
+                return True
+            except Exception as e:
+                print(f"Error storing data with metadata: {e}")
+                return False
     
     def get_metadata(self, key: str) -> Optional[Dict[str, Any]]:
-        """获取元数据"""
-        entry = self._storage.get(key)
-        if entry:
-            return entry["metadata"]
-        return None
+        """获取元数据（线程安全）"""
+        with self._lock:
+            entry = self._storage.get(key)
+            if entry:
+                return entry["metadata"]
+            return None
     
     def clear(self) -> None:
-        """清空所有数据"""
-        self._storage.clear()
-        self._timestamps.clear()
+        """清空所有数据（线程安全）"""
+        with self._lock:
+            self._storage.clear()
+            self._timestamps.clear()
     
     def size(self) -> int:
-        """获取存储大小"""
-        return len(self._storage)
+        """获取存储大小（线程安全）"""
+        with self._lock:
+            return len(self._storage)
     
     def keys(self) -> List[str]:
-        """获取所有键"""
-        return list(self._storage.keys())
+        """获取所有键（线程安全）"""
+        with self._lock:
+            return list(self._storage.keys())
     
     def _is_expired(self, key: str) -> bool:
         """检查数据是否过期"""
@@ -131,14 +147,14 @@ class InMemoryStorage(MemoryStorage):
         return elapsed > timedelta(seconds=self._ttl_seconds)
     
     def _evict_oldest(self) -> None:
-        """移除最旧的数据"""
+        """移除最旧的数据（调用者需持有锁）"""
         if not self._timestamps:
             return
         
         # 找到最旧的键
         oldest_key = min(self._timestamps.keys(), 
                        key=lambda k: self._timestamps[k])
-        self.delete(oldest_key)
+        self._delete_internal(oldest_key)
     
     def _matches_query(self, value: Any, query: str) -> bool:
         """检查值是否匹配查询"""

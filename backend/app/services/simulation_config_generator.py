@@ -232,12 +232,17 @@ class SimulationConfigGenerator:
         self.base_url = base_url or config.LLM_BASE_URL
         self.model_name = model_name or config.LLM_MODEL_NAME
         
+        # 获取 LLM 超时配置
+        self.timeout = config.LLM_TIMEOUT
+        
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
         
+        # 创建 OpenAI 客户端并设置超时
         self.client = OpenAI(
             api_key=self.api_key,
-            base_url=self.base_url
+            base_url=self.base_url,
+            timeout=self.timeout
         )
     
     def generate_config(

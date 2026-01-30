@@ -368,11 +368,33 @@ class SQLiteStorage(DatabaseStorage):
             print(f"Error listing tasks from database: {e}")
             return []
     
+    # 允许更新的任务字段白名单（防止 SQL 注入）
+    ALLOWED_TASK_FIELDS = {
+        'status', 'progress', 'message', 'result', 
+        'error', 'metadata', 'progress_detail'
+    }
+    
     def update_task(self, task_id: str, **kwargs) -> bool:
-        """更新任务"""
+        """更新任务
+        
+        Args:
+            task_id: 任务ID
+            **kwargs: 要更新的字段，必须在白名单中
+            
+        Returns:
+            更新是否成功
+            
+        Raises:
+            ValueError: 如果字段名不在白名单中
+        """
         try:
             if not kwargs:
                 return True
+            
+            # 验证字段名是否在白名单中（防止 SQL 注入）
+            for key in kwargs.keys():
+                if key not in self.ALLOWED_TASK_FIELDS:
+                    raise ValueError(f"Invalid field name: {key}. Allowed fields: {self.ALLOWED_TASK_FIELDS}")
             
             with self.get_connection() as conn:
                 set_clauses = []

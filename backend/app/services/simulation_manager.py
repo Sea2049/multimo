@@ -7,6 +7,7 @@ OASIS模拟管理器
 import os
 import json
 import shutil
+import threading
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -160,11 +161,14 @@ class SimulationManager:
         '../../uploads/simulations'
     )
     
+    # 类级别线程锁，保护共享状态（线程安全）
+    _lock = threading.RLock()
+    
     def __init__(self):
         # 确保目录存在
         os.makedirs(self.SIMULATION_DATA_DIR, exist_ok=True)
         
-        # 内存中的模拟状态缓存
+        # 内存中的模拟状态缓存（需要加锁保护）
         self._simulations: Dict[str, SimulationState] = {}
     
     def _get_simulation_dir(self, simulation_id: str) -> str:
@@ -174,59 +178,69 @@ class SimulationManager:
         return sim_dir
     
     def _save_simulation_state(self, state: SimulationState):
-        """保存模拟状态到文件"""
-        sim_dir = self._get_simulation_dir(state.simulation_id)
-        state_file = os.path.join(sim_dir, "state.json")
-        
-        state.updated_at = datetime.now().isoformat()
-        
-        with open(state_file, 'w', encoding='utf-8') as f:
-            json.dump(state.to_dict(), f, ensure_ascii=False, indent=2)
-        
-        self._simulations[state.simulation_id] = state
+        """保存模拟状态到文件（线程安全）"""
+        with self._lock:
+            sim_dir = self._get_simulation_dir(state.simulation_id)
+            state_file = os.path.join(sim_dir, "state.json")
+            
+            state.updated_at = datetime.now().isoformat()
+            
+            try:
+                with open(state_file, 'w', encoding='utf-8') as f:
+                    json.dump(state.to_dict(), f, ensure_ascii=False, indent=2)
+                
+                self._simulations[state.simulation_id] = state
+            except IOError as e:
+                logger.error(f"Failed to save simulation state: {e}")
+                raise
     
     def _load_simulation_state(self, simulation_id: str) -> Optional[SimulationState]:
-        """从文件加载模拟状态"""
-        if simulation_id in self._simulations:
-            return self._simulations[simulation_id]
-        
-        sim_dir = self._get_simulation_dir(simulation_id)
-        state_file = os.path.join(sim_dir, "state.json")
-        
-        if not os.path.exists(state_file):
-            return None
-        
-        with open(state_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        state = SimulationState(
-            simulation_id=simulation_id,
-            project_id=data.get("project_id", ""),
-            graph_id=data.get("graph_id", ""),
-            enable_twitter=data.get("enable_twitter", True),
-            enable_reddit=data.get("enable_reddit", True),
-            status=SimulationStatus(data.get("status", "created")),
-            entities_count=data.get("entities_count", 0),
-            profiles_count=data.get("profiles_count", 0),
-            entity_types=data.get("entity_types", []),
-            config_generated=data.get("config_generated", False),
-            config_reasoning=data.get("config_reasoning", ""),
-            current_round=data.get("current_round", 0),
-            twitter_status=data.get("twitter_status", "not_started"),
-            reddit_status=data.get("reddit_status", "not_started"),
-            created_at=data.get("created_at", datetime.now().isoformat()),
-            updated_at=data.get("updated_at", datetime.now().isoformat()),
-            error=data.get("error"),
-            # 自动驾驶模式相关字段
-            auto_pilot_enabled=data.get("auto_pilot_enabled", False),
-            auto_pilot_step=data.get("auto_pilot_step", ""),
-            auto_pilot_progress=data.get("auto_pilot_progress", 0),
-            auto_pilot_started_at=data.get("auto_pilot_started_at"),
-            auto_pilot_completed_at=data.get("auto_pilot_completed_at"),
-        )
-        
-        self._simulations[simulation_id] = state
-        return state
+        """从文件加载模拟状态（线程安全）"""
+        with self._lock:
+            if simulation_id in self._simulations:
+                return self._simulations[simulation_id]
+            
+            sim_dir = self._get_simulation_dir(simulation_id)
+            state_file = os.path.join(sim_dir, "state.json")
+            
+            if not os.path.exists(state_file):
+                return None
+            
+            try:
+                with open(state_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except (IOError, json.JSONDecodeError) as e:
+                logger.error(f"Failed to load simulation state: {e}")
+                return None
+            
+            state = SimulationState(
+                simulation_id=simulation_id,
+                project_id=data.get("project_id", ""),
+                graph_id=data.get("graph_id", ""),
+                enable_twitter=data.get("enable_twitter", True),
+                enable_reddit=data.get("enable_reddit", True),
+                status=SimulationStatus(data.get("status", "created")),
+                entities_count=data.get("entities_count", 0),
+                profiles_count=data.get("profiles_count", 0),
+                entity_types=data.get("entity_types", []),
+                config_generated=data.get("config_generated", False),
+                config_reasoning=data.get("config_reasoning", ""),
+                current_round=data.get("current_round", 0),
+                twitter_status=data.get("twitter_status", "not_started"),
+                reddit_status=data.get("reddit_status", "not_started"),
+                created_at=data.get("created_at", datetime.now().isoformat()),
+                updated_at=data.get("updated_at", datetime.now().isoformat()),
+                error=data.get("error"),
+                # 自动驾驶模式相关字段
+                auto_pilot_enabled=data.get("auto_pilot_enabled", False),
+                auto_pilot_step=data.get("auto_pilot_step", ""),
+                auto_pilot_progress=data.get("auto_pilot_progress", 0),
+                auto_pilot_started_at=data.get("auto_pilot_started_at"),
+                auto_pilot_completed_at=data.get("auto_pilot_completed_at"),
+            )
+            
+            self._simulations[simulation_id] = state
+            return state
     
     def create_simulation(
         self,

@@ -93,9 +93,12 @@ class ReportLogger:
             "details": details
         }
         
-        # 追加写入 JSONL 文件
-        with open(self.log_file_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+        # 使用上下文管理器确保文件正确关闭，并添加错误处理
+        try:
+            with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+        except IOError as e:
+            logger.error(f"Failed to write agent log to {self.log_file_path}: {e}")
     
     def log_start(self, simulation_id: str, graph_id: str, simulation_requirement: str):
         """记录报告生成开始"""

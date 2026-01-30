@@ -29,7 +29,8 @@ class AppConfig(BaseSettings):
     """
     
     # Flask 配置
-    SECRET_KEY: str = "multimo-secret-key"
+    # SECRET_KEY 不再使用硬编码默认值，需要在环境变量中配置或由系统自动生成
+    SECRET_KEY: str = ""
     DEBUG: bool = True
     HOST: str = "0.0.0.0"
     PORT: int = 5001
@@ -47,6 +48,7 @@ class AppConfig(BaseSettings):
     
     # Zep 图谱服务配置（使用专用的 Zep Cloud API Key）
     ZEP_API_KEY: Optional[str] = None
+    ZEP_API_TIMEOUT: int = 60  # Zep API 调用超时（秒），默认 60 秒
     
     # 存储配置
     STORAGE_TYPE: str = "memory"  # 可选: memory, database
@@ -140,7 +142,25 @@ class AppConfig(BaseSettings):
     
     def __init__(self, **kwargs):
         """初始化配置"""
+        import secrets
+        
         super().__init__(**kwargs)
+        
+        # SECRET_KEY 安全处理：
+        # - 如果已配置（非空），直接使用
+        # - 如果未配置且为开发模式，自动生成随机密钥
+        # - 如果未配置且为生产模式，抛出异常
+        if not self.SECRET_KEY:
+            if self.DEBUG:
+                # 开发环境自动生成随机密钥
+                self.SECRET_KEY = secrets.token_hex(32)
+            else:
+                # 生产环境必须配置 SECRET_KEY
+                raise ValueError(
+                    "SECRET_KEY must be set in production environment. "
+                    "Please set SECRET_KEY in your .env file or environment variables."
+                )
+        
         self._create_directories()
     
     def _create_directories(self):
@@ -171,6 +191,10 @@ class AppConfig(BaseSettings):
         
         if not self.LLM_MODEL_NAME:
             errors.append("LLM_MODEL_NAME 未配置")
+        
+        # 生产环境必须配置 SECRET_KEY
+        if not self.DEBUG and not self.SECRET_KEY:
+            errors.append("生产环境必须配置 SECRET_KEY")
         
         return errors
     

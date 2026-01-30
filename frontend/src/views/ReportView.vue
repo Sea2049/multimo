@@ -21,6 +21,23 @@
       </div>
 
       <div class="header-right">
+        <button v-if="simulationId" class="nav-btn" @click="goToSimulationView" title="查看模拟过程">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          查看模拟过程
+        </button>
+        <button v-if="simulationId" class="nav-btn" @click="toggleSimulationLogs" title="查看模拟日志">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <line x1="10" y1="9" x2="8" y2="9"></line>
+          </svg>
+          {{ showSimulationLogs ? '隐藏日志' : '查看日志' }}
+        </button>
+        <div v-if="simulationId" class="step-divider"></div>
         <div class="workflow-step">
           <span class="step-num">Step 4/5</span>
           <span class="step-name">报告生成</span>
@@ -186,6 +203,10 @@ const uploading = ref(false)
 const uploadStatus = ref(null)
 const fileInput = ref(null)
 
+// 模拟日志相关
+const showSimulationLogs = ref(false)
+const simulationLogs = ref([])
+
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
   if (viewMode.value === 'graph') return { width: '100%', opacity: 1, transform: 'translateX(0)' }
@@ -235,6 +256,26 @@ const handleFullExport = () => {
   if (!simulationId.value) return
   const url = exportSimulationData(simulationId.value)
   window.open(url, '_blank')
+}
+
+const goToSimulationView = () => {
+  if (simulationId.value) {
+    // 使用查看模式参数，不会自动开始模拟
+    router.push({ 
+      name: 'SimulationRun', 
+      params: { simulationId: simulationId.value },
+      query: { view: 'true' }  // 添加查看模式标记
+    })
+  }
+}
+
+const toggleSimulationLogs = async () => {
+  showSimulationLogs.value = !showSimulationLogs.value
+  
+  if (showSimulationLogs.value && simulationLogs.value.length === 0) {
+    // 加载模拟日志
+    await loadSimulationLogs()
+  }
 }
 
 const toggleMaximize = (target) => {

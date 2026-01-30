@@ -58,6 +58,10 @@ class GraphBuilderService:
         if not self.api_key.startswith('z_'):
             raise ValueError(f"Zep API Key 格式无效，期望以 'z_' 开头，当前 Key: {self.api_key[:15]}...")
         
+        # 获取 API 超时配置
+        self.timeout = config.ZEP_API_TIMEOUT
+        
+        # 创建 Zep 客户端（超时由底层 SDK 处理，可通过 request_options 传递）
         self.client = Zep(api_key=self.api_key)
         self.task_manager = TaskManager()
     

@@ -392,7 +392,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, onBeforeUnmount, nextTick, h, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAgentLog, getConsoleLog } from '../api/report'
 
@@ -2125,6 +2125,11 @@ onMounted(() => {
     addLog(`Report Agent initialized: ${props.reportId}`)
     startPolling()
   }
+})
+
+// 确保组件卸载前和卸载时都清理定时器（双重保护）
+onBeforeUnmount(() => {
+  stopPolling()
 })
 
 onUnmounted(() => {

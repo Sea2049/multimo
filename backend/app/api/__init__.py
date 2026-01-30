@@ -161,6 +161,44 @@ def get_error_response(
     }
 
 
+def make_error_response(
+    error: Exception,
+    status_code: int = 500,
+    error_code: ErrorCode = ErrorCode.INTERNAL_ERROR,
+    custom_message: str = None
+) -> dict:
+    """生成安全的错误响应（仅在 DEBUG 模式下包含 traceback）
+    
+    用于 API 端点的异常处理，自动根据环境决定是否暴露详细错误信息
+    
+    Args:
+        error: 捕获的异常对象
+        status_code: HTTP 状态码
+        error_code: 错误代码枚举值
+        custom_message: 自定义错误消息，如果不提供则使用异常消息
+        
+    Returns:
+        错误响应字典
+    """
+    import traceback
+    
+    config = get_config()
+    error_message = custom_message if custom_message else str(error)
+    
+    response = {
+        "success": False,
+        "error": error_message,
+        "error_code": error_code.value,
+        "recovery_suggestion": ErrorRecovery.get(error_code)
+    }
+    
+    # 仅在 DEBUG 模式下包含 traceback，生产环境不泄露敏感信息
+    if config.DEBUG:
+        response["traceback"] = traceback.format_exc()
+    
+    return response
+
+
 def get_http_error_response(status_code: int, error_message: str = None) -> tuple:
     """根据 HTTP 状态码获取统一的错误响应
     

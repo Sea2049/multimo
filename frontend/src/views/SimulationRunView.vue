@@ -56,6 +56,7 @@
           :projectData="projectData"
           :graphData="graphData"
           :systemLogs="systemLogs"
+          :viewMode="isViewMode"
           @go-back="handleGoBack"
           @next-step="handleNextStep"
           @add-log="addLog"
@@ -79,7 +80,11 @@ const router = useRouter()
 
 // Props
 const props = defineProps({
-  simulationId: String
+  simulationId: String,
+  viewMode: {
+    type: Boolean,
+    default: false  // false: 正常模式（可以运行模拟）, true: 查看模式（只读）
+  }
 })
 
 // Layout State
@@ -87,6 +92,8 @@ const viewMode = ref('split')
 
 // Data State
 const currentSimulationId = ref(route.params.simulationId)
+// 从 query 参数获取是否为查看模式
+const isViewMode = ref(route.query.view === 'true' || props.viewMode)
 // 直接在初始化时从 query 参数获取 maxRounds，确保子组件能立即获取到值
 const maxRounds = ref(route.query.maxRounds ? parseInt(route.query.maxRounds) : null)
 const minutesPerRound = ref(30) // 默认每轮30分钟

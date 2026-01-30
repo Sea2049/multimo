@@ -358,7 +358,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
   startSimulation, 
@@ -371,14 +371,18 @@ import { generateReport } from '../api/report'
 
 const props = defineProps({
   simulationId: String,
-  maxRounds: Number, // 从Step2传入的最大轮数
+  maxRounds: Number,
   minutesPerRound: {
     type: Number,
-    default: 30 // 默认每轮30分钟
+    default: 30
   },
   projectData: Object,
   graphData: Object,
-  systemLogs: Array
+  systemLogs: Array,
+  viewMode: {
+    type: Boolean,
+    default: false  // false: 正常模式, true: 查看模式（只读）
+  }
 })
 
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
@@ -823,8 +827,54 @@ watch(() => props.systemLogs?.length, () => {
 onMounted(() => {
   addLog('Step3 模拟运行初始化')
   if (props.simulationId) {
-    checkResumableStatus()
+    if (props.viewMode) {
+      // 查看模式：只加载历史数据，不检查是否可恢复
+      addLog('查看模式：加载历史模拟数据')
+      loadSimulationHistory()
+    } else {
+      // 正常模式：检查是否可恢复
+      checkResumableStatus()
+    }
   }
+})
+
+// 加载历史模拟数据（查看模式）
+const loadSimulationHistory = async () => {
+  try {
+    const res = await getRunStatus(props.simulationId)
+    if (res.success && res.data) {
+      const status = res.data
+      
+      // 设置阶段
+      if (status.status === 'completed') {
+        phase.value = 2
+        addLog('模拟已完成')
+      } else if (status.status === 'running') {
+        phase.value = 1
+        addLog('模拟正在运行中')
+        // 在查看模式下，即使模拟正在运行，也不启动轮询
+      } else {
+        phase.value = 0
+        addLog(`模拟状态: ${status.status}`)
+      }
+      
+      // 加载详细状态
+      const detailRes = await getRunStatusDetail(props.simulationId)
+      if (detailRes.success && detailRes.data) {
+        runStatus.value = detailRes.data
+        const currentRound = detailRes.data.current_round || 0
+        const totalRounds = detailRes.data.total_rounds || 0
+        addLog(`当前进度: ${currentRound}/${totalRounds} 轮`)
+      }
+    }
+  } catch (err) {
+    addLog(`加载历史数据失败: ${err.message}`)
+  }
+}
+
+// 确保组件卸载前和卸载时都清理定时器（双重保护）
+onBeforeUnmount(() => {
+  stopPolling()
 })
 
 onUnmounted(() => {
