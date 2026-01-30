@@ -157,7 +157,7 @@
                 <div class="tools-card-name">Report Agent - Chat</div>
                 <div class="tools-card-subtitle">报告生成智能体的快速对话版本，可调用 4 种专业工具，拥有Multimo的完整记忆</div>
               </div>
-              <button class="tools-card-toggle" @click="showToolsDetail = !showToolsDetail">
+              <button class="tools-card-toggle" @click="showToolsDetail = !showToolsDetail" :aria-label="showToolsDetail ? '收起工具详情' : '展开工具详情'" :aria-expanded="showToolsDetail">
                 <svg :class="{ 'is-expanded': showToolsDetail }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
@@ -227,7 +227,7 @@
                   <span class="profile-card-profession">{{ selectedAgent.profession || '未知职业' }}</span>
                 </div>
               </div>
-              <button class="profile-card-toggle" @click="showFullProfile = !showFullProfile">
+              <button class="profile-card-toggle" @click="showFullProfile = !showFullProfile" :aria-label="showFullProfile ? '收起用户资料' : '展开用户资料'" :aria-expanded="showFullProfile">
                 <svg :class="{ 'is-expanded': showFullProfile }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
@@ -302,6 +302,7 @@
               class="send-btn"
               @click="sendMessage"
               :disabled="!chatInput.trim() || isSending || (!selectedAgent && chatTarget === 'agent')"
+              aria-label="发送消息"
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -696,13 +697,10 @@ const sendToAgent = async (message) => {
     prompt = `以下是我们之前的对话：\n${historyContext}\n\n现在我的新问题是：${message}`
   }
   
-  const res = await interviewAgents({
-    simulation_id: props.simulationId,
-    interviews: [{
-      agent_id: selectedAgentIndex.value,
-      prompt: prompt
-    }]
-  })
+  const res = await interviewAgents(props.simulationId, [{
+    agent_id: selectedAgentIndex.value,
+    prompt: prompt
+  }])
   
   if (res.success && res.data) {
     // 正确的数据路径: res.data.result.results 是一个对象字典
@@ -783,10 +781,7 @@ const submitSurvey = async () => {
       prompt: surveyQuestion.value.trim()
     }))
     
-    const res = await interviewAgents({
-      simulation_id: props.simulationId,
-      interviews: interviews
-    })
+    const res = await interviewAgents(props.simulationId, interviews)
     
     if (res.success && res.data) {
       // 正确的数据路径: res.data.result.results 是一个对象字典

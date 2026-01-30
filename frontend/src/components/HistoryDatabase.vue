@@ -25,9 +25,14 @@
         class="project-card"
         :class="{ expanded: isExpanded, hovering: hoveringCard === index }"
         :style="getCardStyle(index)"
+        role="button"
+        tabindex="0"
+        :aria-label="`查看项目 ${formatSimulationId(project.simulation_id)}`"
         @mouseenter="hoveringCard = index"
         @mouseleave="hoveringCard = null"
         @click="navigateToProject(project)"
+        @keydown.enter="navigateToProject(project)"
+        @keydown.space.prevent="navigateToProject(project)"
       >
         <!-- 卡片头部：simulation_id 和 功能可用状态 -->
         <div class="card-header">

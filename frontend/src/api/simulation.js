@@ -103,11 +103,16 @@ export const getSimulationProfilesRealtime = (simulationId, platform) => {
  * 批量采访多个智能体
  * @param {string} simulationId
  * @param {Array} interviews - 采访列表 [{ agent_id, platform, prompt }]
+ * @param {number} timeout - 超时时间（秒），默认根据采访数量动态计算
  */
-export const interviewAgents = (simulationId, interviews) => {
-  return requestWithRetry(() => service.post(`/api/simulation/${simulationId}/interview/batch`, {
-    interviews
-  }), 3, 1000)
+export const interviewAgents = (simulationId, interviews, timeout = null) => {
+  // 根据采访数量动态设置超时：每个 agent 约 15 秒，最少 120 秒，最多 900 秒
+  const dynamicTimeout = timeout || Math.min(Math.max(interviews.length * 15, 120), 900)
+  return requestWithRetry(() => service.post('/api/simulation/interview/batch', {
+    simulation_id: simulationId,
+    interviews,
+    timeout: dynamicTimeout
+  }), 1, 1000)  // 减少重试次数，避免长时间等待
 }
 
 /**

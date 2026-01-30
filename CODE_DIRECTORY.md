@@ -113,6 +113,17 @@ backend/app/
 backend/app/api/
 ├── __init__.py             # API 蓝图初始化和路由注册、认证模块初始化
 ├── auth.py                 # API 认证模块（API Key、请求签名）
+├── decorators.py           # API 请求验证装饰器（新增）
+├── response.py             # API 响应构建模块（新增）
+├── simulation/             # 模拟 API 模块化目录（新增）
+│   ├── __init__.py         # 模块初始化和路由注册
+│   ├── autopilot.py        # 自动驾驶 API 端点
+│   ├── control.py          # 模拟控制 API 端点
+│   ├── data.py             # 数据查询 API 端点
+│   ├── entities.py         # 实体操作 API 端点
+│   ├── env.py              # 环境管理 API 端点
+│   ├── interview.py        # 采访功能 API 端点
+│   └── prepare.py          # 模拟准备 API 端点
 ├── v1/                     # API v1 版本
 │   ├── __init__.py
 │   ├── graph.py            # 图谱操作 API 端点
@@ -121,6 +132,50 @@ backend/app/api/
 │   ├── interaction.py      # 交互对话 API 端点
 │   └── health.py           # 健康检查 API 端点
 ```
+
+**backend/app/api/decorators.py**（新增）
+- `validate_request()` - 统一请求验证装饰器
+- `validate_json_body()` - JSON Body 验证装饰器
+- `validate_path_param()` - 路径参数验证装饰器
+- `require_resource()` - 资源存在性验证装饰器
+- `validate_simulation_id()` - 模拟 ID 验证快捷方式
+- `validate_graph_id_param()` - 图谱 ID 验证快捷方式
+- SQL 注入检测和参数清理
+
+**backend/app/api/response.py**（新增）
+- `success()` - 成功响应构建
+- `created()` - 201 创建成功响应
+- `accepted()` - 202 异步任务接受响应
+- `error()` - 错误响应构建
+- `exception_error()` - 异常错误响应（自动处理 DEBUG 模式）
+- `bad_request()` - 400 请求错误响应
+- `not_found()` - 404 资源不存在响应
+- `validation_error()` - 422 验证错误响应
+- `internal_error()` - 500 服务器错误响应
+- `paginated()` - 分页响应构建
+- `stream()` - 流式响应构建
+
+**backend/app/api/simulation/autopilot.py**（新增）
+- 自动驾驶模式配置、启动、暂停、恢复、停止 API
+- 自动驾驶状态查询和重置 API
+
+**backend/app/api/simulation/control.py**（新增）
+- 模拟启动、停止、运行状态查询 API
+
+**backend/app/api/simulation/data.py**（新增）
+- 模拟数据查询、历史记录、导出 API
+
+**backend/app/api/simulation/entities.py**（新增）
+- 模拟实体操作、配置查询 API
+
+**backend/app/api/simulation/env.py**（新增）
+- 环境状态查询、环境关闭 API
+
+**backend/app/api/simulation/interview.py**（新增）
+- 批量采访智能体 API
+
+**backend/app/api/simulation/prepare.py**（新增）
+- 模拟创建、准备、准备状态查询 API
 
 **backend/app/api/auth.py**
 - `APIKeyManager` - API Key 管理器
@@ -316,6 +371,27 @@ backend/app/services/
 - 封装 Zep API 调用
 - 处理 Zep 数据格式
 - Zep 会话管理
+
+#### 2.1.4.1 报告服务模块 (backend/app/services/report/)（新增）
+
+```
+backend/app/services/report/
+├── __init__.py             # 报告服务模块初始化
+├── logger.py               # 报告日志服务
+└── models.py               # 报告数据模型
+```
+
+**backend/app/services/report/logger.py**（新增）
+- `ReportLogger` 类：报告日志记录器
+- 支持结构化日志输出
+- 支持日志级别控制
+- 日志文件管理
+
+**backend/app/services/report/models.py**（新增）
+- 报告相关的数据模型定义
+- 报告状态枚举
+- 报告元数据结构
+- 报告内容模型
 
 #### 2.1.5 功能模块层 (backend/app/modules/)
 
@@ -830,14 +906,41 @@ frontend/src/assets/
 
 ```
 frontend/src/components/
-├── GraphPanel.vue          # 图谱展示面板（D3.js 可视化）
-├── HistoryDatabase.vue     # 历史数据库组件
-├── Step1GraphBuild.vue     # 步骤1：图谱构建
-├── Step2EnvSetup.vue       # 步骤2：环境搭建
-├── Step3Simulation.vue     # 步骤3：开始模拟
-├── Step4Report.vue         # 步骤4：报告生成
-└── Step5Interaction.vue    # 步骤5：深度互动
+├── common/                   # 通用组件库（新增）
+│   ├── index.js             # 组件统一导出
+│   ├── LoadingSpinner.vue   # 加载动画组件
+│   ├── Modal.vue            # 模态框组件
+│   ├── StatusBadge.vue      # 状态徽章组件
+│   └── StepCard.vue         # 步骤卡片组件
+├── ErrorAlert.vue           # 错误提示组件
+├── GraphPanel.vue           # 图谱展示面板（D3.js 可视化）
+├── HistoryDatabase.vue      # 历史数据库组件
+├── Step1GraphBuild.vue      # 步骤1：图谱构建
+├── Step2EnvSetup.vue        # 步骤2：环境搭建
+├── Step3Simulation.vue      # 步骤3：开始模拟
+├── Step4Report.vue          # 步骤4：报告生成
+└── Step5Interaction.vue     # 步骤5：深度互动
 ```
+
+**frontend/src/components/common/LoadingSpinner.vue**（新增）
+- 统一的加载动画组件
+- 支持自定义大小和颜色
+- 支持全屏和内嵌模式
+
+**frontend/src/components/common/Modal.vue**（新增）
+- 通用模态框组件
+- 支持自定义标题、内容和操作按钮
+- 支持遮罩层点击关闭
+
+**frontend/src/components/common/StatusBadge.vue**（新增）
+- 状态徽章组件
+- 支持不同状态的颜色和样式
+- 用于显示任务状态、模拟状态等
+
+**frontend/src/components/common/StepCard.vue**（新增）
+- 步骤卡片组件
+- 用于工作流程展示
+- 支持步骤状态和进度显示
 
 **frontend/src/components/GraphPanel.vue**
 - 使用 D3.js 实现图谱可视化
@@ -908,13 +1011,47 @@ frontend/src/store/
 
 ```
 frontend/src/composables/
-└── useErrorHandler.js     # 错误处理组合式函数
+├── useErrorHandler.js     # 错误处理组合式函数
+└── usePolling.js          # 轮询组合式函数（新增）
 ```
 
 **frontend/src/composables/useErrorHandler.js**
 - 统一错误处理逻辑
 - 错误信息展示
 - 错误状态管理
+
+**frontend/src/composables/usePolling.js**（新增）
+- `usePolling()` - 统一的轮询逻辑
+  - 自动处理组件卸载时的清理
+  - 支持立即执行、自动开始选项
+  - 支持暂停/恢复/重启操作
+  - 支持最大重试次数限制
+  - 支持条件停止
+- `usePollingManager()` - 多轮询任务管理
+  - 同时管理多个轮询任务
+  - 批量启动/停止/暂停/恢复
+- `useBackoffPolling()` - 带退避策略的轮询
+  - 连续失败时自动增加轮询间隔
+  - 成功后恢复基础间隔
+
+#### 3.2.7.1 工具函数 (frontend/src/utils/)（新增）
+
+```
+frontend/src/utils/
+├── formatters.js          # 数据格式化工具
+└── markdown.js            # Markdown 处理工具
+```
+
+**frontend/src/utils/formatters.js**（新增）
+- 日期时间格式化函数
+- 数字格式化函数
+- 文件大小格式化函数
+- 状态文本格式化函数
+
+**frontend/src/utils/markdown.js**（新增）
+- Markdown 渲染处理
+- 代码高亮支持
+- 安全的 HTML 输出
 
 #### 3.2.8 页面视图 (frontend/src/views/)
 
@@ -1115,6 +1252,39 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.60 (2026-01-30)
+
+**版本固化：**
+- 🎉 正式发布 v1.60 版本
+- 🔐 P0+P1 安全和稳定性改进
+- 🏗️ API 层模块化重构
+- 🎨 前端组件库优化
+
+**代码目录新增：**
+- 后端 API 装饰器模块 (`api/decorators.py`)
+- 后端 API 响应构建模块 (`api/response.py`)
+- 后端模拟 API 模块化目录 (`api/simulation/`)
+- 后端报告服务模块 (`services/report/`)
+- 前端通用组件库 (`components/common/`)
+- 前端轮询 Composable (`composables/usePolling.js`)
+- 前端工具函数 (`utils/`)
+
+**安全改进：**
+- ✅ 修复 traceback 泄露问题
+- ✅ SQL 注入防护
+- ✅ 线程安全改进
+- ✅ 定时器清理优化
+- ✅ API 超时配置
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 阿里云部署脚本和配置
+- 完整的单元测试覆盖
 
 ### v1.30 (2026-01-22)
 

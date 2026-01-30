@@ -636,6 +636,84 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
+### v1.60 (2026-01-30)
+
+**版本固化：**
+- 🎉 正式发布 v1.60 版本
+- 🔐 P0+P1 安全和稳定性改进
+- 🏗️ API 层模块化重构
+- 🎨 前端组件库优化
+- 📚 完善文档体系
+
+**安全改进：**
+- ✅ 修复 traceback 泄露问题，生产环境不再暴露堆栈信息
+- ✅ SQL 注入防护：新增全面的输入验证和清理机制
+- ✅ 线程安全：修复多线程环境下的竞态条件
+- ✅ 定时器清理：组件卸载时自动清理所有定时器，避免内存泄漏
+- ✅ API 超时配置：支持配置请求超时，防止长时间挂起
+
+**后端架构改进：**
+- 🔧 新增 API 装饰器模块 (`api/decorators.py`)
+  - 统一的请求验证装饰器
+  - SQL 注入检测装饰器
+  - 参数清理和验证装饰器
+- 🔧 新增 API 响应构建模块 (`api/response.py`)
+  - 统一的成功/错误响应格式
+  - 分页响应支持
+  - 流式响应支持
+- 🔧 模拟 API 模块化重构 (`api/simulation/`)
+  - `autopilot.py` - 自动驾驶 API
+  - `control.py` - 模拟控制 API
+  - `data.py` - 数据 API
+  - `entities.py` - 实体 API
+  - `env.py` - 环境 API
+  - `interview.py` - 采访 API
+  - `prepare.py` - 准备 API
+- 🔧 报告服务模块化 (`services/report/`)
+  - `logger.py` - 报告日志服务
+  - `models.py` - 报告数据模型
+
+**前端架构改进：**
+- 🎨 新增通用组件库 (`components/common/`)
+  - `LoadingSpinner.vue` - 加载动画组件
+  - `Modal.vue` - 模态框组件
+  - `StatusBadge.vue` - 状态徽章组件
+  - `StepCard.vue` - 步骤卡片组件
+- 🔧 新增 Composables
+  - `usePolling.js` - 统一的轮询逻辑，自动清理
+  - `useBackoffPolling` - 带退避策略的轮询
+  - `usePollingManager` - 多轮询任务管理
+- 🔧 新增工具函数 (`utils/`)
+  - `formatters.js` - 数据格式化工具
+  - `markdown.js` - Markdown 处理工具
+- 🐛 修复多个前端组件和视图的问题
+
+**功能特性：**
+- ✅ 图谱构建功能（实体抽取、关系提取、知识图谱）
+- ✅ 环境搭建功能（人设生成、配置生成）
+- ✅ Twitter 和 Reddit 双平台并行模拟
+- ✅ 报告生成功能（基于模拟结果的预测报告）
+- ✅ 智能体对话功能（与模拟世界中的智能体交互）
+- ✅ 自动驾驶模式（AUTO / MANUAL 模式切换）
+- ✅ 本体生成功能（生成本体结构）
+- ✅ 模拟创建和准备功能
+- ✅ 实时状态查询功能
+- ✅ 批量采访智能体功能
+- ✅ 环境管理功能
+- ✅ 完整的 API 接口和错误处理
+- ✅ Docker 容器化部署支持
+- ✅ 阿里云部署支持
+- ✅ 完善的测试用例
+
+**技术改进：**
+- 前后端分离架构（Vue.js + Flask）
+- 集成 Zep Cloud 长期记忆
+- 集成 OASIS 社交模拟引擎（Apache 2.0）
+- 支持 OpenAI SDK 格式的任意 LLM
+- Docker 容器化部署
+- 阿里云部署脚本和配置
+- 完整的单元测试覆盖
+
 ### v1.30 (2026-01-22)
 
 **版本固化：**

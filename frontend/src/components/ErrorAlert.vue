@@ -25,7 +25,7 @@
         >
           重试
         </button>
-        <button class="close-btn" @click="removeAlert(item.id)">
+        <button class="close-btn" @click="removeAlert(item.id)" aria-label="关闭提示">
           ✕
         </button>
       </div>
@@ -54,6 +54,7 @@ const addAlert = (options) => {
     message,
     suggestion = '',
     showRetry = false,
+    retryFn = null,
     duration = 0
   } = options
   
@@ -67,7 +68,8 @@ const addAlert = (options) => {
     type,
     message,
     suggestion,
-    showRetry
+    showRetry,
+    retryFn
   })
   
   if (duration > 0) {

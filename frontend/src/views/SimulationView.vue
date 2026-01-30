@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="brand" @click="router.push('/')">MULTIMO</div>
+        <a href="/" class="brand" @click.prevent="router.push('/')">MULTIMO</a>
       </div>
       
       <div class="header-center">
@@ -326,6 +326,8 @@ onMounted(async () => {
   font-size: 18px;
   letter-spacing: 1px;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
 }
 
 .header-center {

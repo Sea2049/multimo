@@ -38,7 +38,7 @@
             <img src="../assets/logo/multimo-logo.png" alt="Multimo Logo" class="hero-logo" />
           </div>
           
-          <button class="scroll-down-btn" @click="scrollToBottom">
+          <button class="scroll-down-btn" @click="scrollToBottom" aria-label="滚动到底部">
             ↓
           </button>
         </div>
@@ -136,6 +136,7 @@
                 <input
                   ref="fileInput"
                   type="file"
+                  name="reality-seeds"
                   multiple
                   accept=".pdf,.md,.txt"
                   @change="handleFileSelect"
@@ -153,7 +154,7 @@
                   <div v-for="(file, index) in files" :key="index" class="file-item">
                     <span class="file-icon">📄</span>
                     <span class="file-name">{{ file.name }}</span>
-                    <button @click.stop="removeFile(index)" class="remove-btn">×</button>
+                    <button @click.stop="removeFile(index)" class="remove-btn" :aria-label="`移除文件 ${file.name}`">×</button>
                   </div>
                 </div>
               </div>
@@ -173,6 +174,8 @@
                 <textarea
                   v-model="formData.simulationRequirement"
                   class="code-input"
+                  name="simulation-requirement"
+                  autocomplete="off"
                   placeholder="// 用自然语言输入模拟或预测需求（例.武大若发布撤销肖某处分的公告，会引发什么舆情走向）"
                   rows="6"
                   :disabled="loading"
@@ -196,6 +199,8 @@
                   type="number" 
                   v-model.number="formData.rounds" 
                   class="rounds-input"
+                  name="simulation-rounds"
+                  autocomplete="off"
                   min="1"
                   max="100"
                 >

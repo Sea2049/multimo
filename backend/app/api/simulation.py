@@ -2386,7 +2386,10 @@ def interview_agents_batch():
         simulation_id = data.get('simulation_id')
         interviews = data.get('interviews')
         platform = data.get('platform')  # 可选：twitter/reddit/None
-        timeout = data.get('timeout', 120)
+        # 根据采访数量动态设置超时：每个 agent 约 15 秒，最少 120 秒，最多 900 秒
+        interview_count = len(interviews) if interviews else 0
+        default_timeout = min(max(interview_count * 15, 120), 900)
+        timeout = data.get('timeout', default_timeout)
 
         if not simulation_id:
             return jsonify({

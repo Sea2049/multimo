@@ -14,6 +14,7 @@ export const useErrorHandler = () => {
         message: errorData.message || '发生错误',
         suggestion: errorData.suggestion || '',
         showRetry: errorData.showRetry || false,
+        retryFn: errorData.retryFn || null,
         duration: 0
       })
     } else {
