@@ -155,7 +155,7 @@ def init_logging_for_simulation(simulation_dir: str):
         shutil.rmtree(old_log_dir, ignore_errors=True)
 
 
-from action_logger import SimulationLogManager, PlatformActionLogger
+from action_logger import SimulationLogManager, PlatformActionLogger, RunStateUpdater
 
 try:
     from camel.models import ModelFactory
@@ -1103,7 +1103,8 @@ async def run_twitter_simulation(
     simulation_dir: str,
     action_logger: Optional[PlatformActionLogger] = None,
     main_logger: Optional[SimulationLogManager] = None,
-    max_rounds: Optional[int] = None
+    max_rounds: Optional[int] = None,
+    state_updater: Optional[RunStateUpdater] = None
 ) -> PlatformSimulation:
     """运行Twitter模拟
     
@@ -1113,6 +1114,7 @@ async def run_twitter_simulation(
         action_logger: 动作日志记录器
         main_logger: 主日志管理器
         max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
+        state_updater: 状态更新器（用于更新 run_state.json）
         
     Returns:
         PlatformSimulation: 包含env和agent_graph的结果对象
@@ -1274,6 +1276,15 @@ async def run_twitter_simulation(
         if action_logger:
             action_logger.log_round_end(round_num + 1, round_action_count)
         
+        # 更新 run_state.json（子进程直接更新，不依赖监控线程）
+        if state_updater:
+            state_updater.update_round(
+                platform="twitter",
+                current_round=round_num + 1,
+                simulated_hours=simulated_hour,
+                actions_count=total_actions
+            )
+        
         if (round_num + 1) % 20 == 0:
             progress = (round_num + 1) / total_rounds * 100
             log_info(f"Day {simulated_day}, {simulated_hour:02d}:00 - Round {round_num + 1}/{total_rounds} ({progress:.1f}%)")
@@ -1282,6 +1293,10 @@ async def run_twitter_simulation(
     
     if action_logger:
         action_logger.log_simulation_end(total_rounds, total_actions)
+    
+    # 标记 Twitter 平台完成
+    if state_updater:
+        state_updater.mark_platform_completed("twitter", total_actions)
     
     result.total_actions = total_actions
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -1296,7 +1311,8 @@ async def run_reddit_simulation(
     action_logger: Optional[PlatformActionLogger] = None,
     main_logger: Optional[SimulationLogManager] = None,
     max_rounds: Optional[int] = None,
-    resume: bool = False
+    resume: bool = False,
+    state_updater: Optional[RunStateUpdater] = None
 ) -> PlatformSimulation:
     """运行Reddit模拟
     
@@ -1307,6 +1323,7 @@ async def run_reddit_simulation(
         main_logger: 主日志管理器
         max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
         resume: 是否尝试恢复
+        state_updater: 状态更新器（用于更新 run_state.json）
         
     Returns:
         PlatformSimulation: 包含env和agent_graph的结果对象
@@ -1501,6 +1518,15 @@ async def run_reddit_simulation(
         if action_logger:
             action_logger.log_round_end(round_num + 1, round_action_count)
         
+        # 更新 run_state.json（子进程直接更新，不依赖监控线程）
+        if state_updater:
+            state_updater.update_round(
+                platform="reddit",
+                current_round=round_num + 1,
+                simulated_hours=simulated_hour,
+                actions_count=total_actions
+            )
+        
         if (round_num + 1) % 20 == 0:
             progress = (round_num + 1) / total_rounds * 100
             log_info(f"Day {simulated_day}, {simulated_hour:02d}:00 - Round {round_num + 1}/{total_rounds} ({progress:.1f}%)")
@@ -1509,6 +1535,10 @@ async def run_reddit_simulation(
     
     if action_logger:
         action_logger.log_simulation_end(total_rounds, total_actions)
+    
+    # 标记 Reddit 平台完成
+    if state_updater:
+        state_updater.mark_platform_completed("reddit", total_actions)
     
     result.total_actions = total_actions
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -1576,6 +1606,21 @@ async def main():
     twitter_logger = log_manager.get_twitter_logger()
     reddit_logger = log_manager.get_reddit_logger()
     
+    # 创建状态更新器（用于子进程直接更新 run_state.json）
+    time_config_init = config.get("time_config", {})
+    total_hours_init = time_config_init.get('total_simulation_hours', 72)
+    minutes_per_round_init = time_config_init.get('minutes_per_round', 30)
+    total_rounds_init = (total_hours_init * 60) // minutes_per_round_init
+    if args.max_rounds and args.max_rounds > 0:
+        total_rounds_init = min(total_rounds_init, args.max_rounds)
+    
+    state_updater = RunStateUpdater(
+        sim_dir=simulation_dir,
+        simulation_id=config.get('simulation_id', 'unknown'),
+        total_rounds=total_rounds_init,
+        total_hours=total_hours_init
+    )
+    
     log_manager.info("=" * 60)
     log_manager.info("OASIS 双平台并行模拟")
     log_manager.info(f"配置文件: {args.config}")
@@ -1611,14 +1656,26 @@ async def main():
     reddit_result: Optional[PlatformSimulation] = None
     
     if args.twitter_only:
-        twitter_result = await run_twitter_simulation(config, simulation_dir, twitter_logger, log_manager, args.max_rounds)
+        twitter_result = await run_twitter_simulation(
+            config, simulation_dir, twitter_logger, log_manager, args.max_rounds,
+            state_updater=state_updater
+        )
     elif args.reddit_only:
-        reddit_result = await run_reddit_simulation(config, simulation_dir, reddit_logger, log_manager, args.max_rounds)
+        reddit_result = await run_reddit_simulation(
+            config, simulation_dir, reddit_logger, log_manager, args.max_rounds,
+            state_updater=state_updater
+        )
     else:
         # 并行运行（每个平台使用独立的日志记录器）
         results = await asyncio.gather(
-            run_twitter_simulation(config, simulation_dir, twitter_logger, log_manager, args.max_rounds),
-            run_reddit_simulation(config, simulation_dir, reddit_logger, log_manager, args.max_rounds),
+            run_twitter_simulation(
+                config, simulation_dir, twitter_logger, log_manager, args.max_rounds,
+                state_updater=state_updater
+            ),
+            run_reddit_simulation(
+                config, simulation_dir, reddit_logger, log_manager, args.max_rounds,
+                state_updater=state_updater
+            ),
         )
         twitter_result, reddit_result = results
     
@@ -1674,6 +1731,10 @@ async def main():
     if reddit_result and reddit_result.env:
         await reddit_result.env.close()
         log_manager.info("[Reddit] 环境已关闭")
+    
+    # 最终确认状态为完成（确保 run_state.json 是最新的）
+    state_updater.mark_completed()
+    log_manager.info("[状态] run_state.json 已更新为 completed")
     
     log_manager.info("=" * 60)
     log_manager.info(f"全部完成!")

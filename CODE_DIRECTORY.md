@@ -372,6 +372,19 @@ backend/app/services/
 - 处理 Zep 数据格式
 - Zep 会话管理
 
+**backend/app/services/report_task_worker.py**（v1.61 新增）
+- 报告任务工作器，实现断点续传
+- `ReportCheckpoint` 类：报告生成检查点数据模型
+  - 记录大纲生成状态
+  - 跟踪章节生成进度
+  - 支持从任意检查点恢复
+- `ReportTaskWorker` 类：报告任务工作器
+  - `start_report_task()` - 启动报告生成任务
+  - `get_task_status()` - 获取任务状态
+  - `recover_interrupted_tasks()` - 恢复中断的任务
+  - `cancel_task()` - 取消任务
+- `get_report_task_worker()` - 全局单例获取函数
+
 #### 2.1.4.1 报告服务模块 (backend/app/services/report/)（新增）
 
 ```
@@ -552,6 +565,11 @@ backend/app/utils/
 - 解析 Markdown 文件
 - 处理文件编码问题
 - 支持多种编码格式
+- v1.61 新增：扫描版 PDF OCR 识别
+  - `OCR_ENABLED` - OCR 功能开关
+  - `OCR_LANG` - OCR 语言配置（默认 `chi_sim+eng`）
+  - `_is_scanned_pdf()` - 检测 PDF 是否为扫描版
+  - `_extract_from_pdf_with_ocr()` - OCR 文字提取
 
 **backend/app/utils/llm_client.py**
 - 封装 LLM API 调用
@@ -1252,6 +1270,30 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v1.61 (2026-02-01)
+
+**版本固化：**
+- 🎉 正式发布 v1.61 版本
+- 🔄 报告生成断点续传功能
+- 📄 扫描版 PDF OCR 识别支持
+- 📥 报告下载功能增强
+
+**代码目录新增：**
+- 后端报告任务工作器 (`services/report_task_worker.py`)
+  - `ReportCheckpoint` 类：检查点数据模型
+  - `ReportTaskWorker` 类：任务工作器
+  - 支持断点续传和任务恢复
+
+**代码目录更新：**
+- `utils/file_parser.py` - 新增 OCR 识别功能
+- `services/report_agent.py` - 新增检查点支持
+- `api/v1/report.py` - 改进报告下载功能
+- `utils/llm_client.py` - 优化错误处理
+
+**依赖更新：**
+- 新增 `pytesseract` - OCR 识别
+- 新增 `Pillow` - 图像处理
 
 ### v1.60 (2026-01-30)
 

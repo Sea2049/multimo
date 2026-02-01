@@ -1636,6 +1636,292 @@ class ReportAgent:
             
             return report
     
+    def generate_report_with_checkpoint(
+        self,
+        checkpoint: 'ReportCheckpoint',
+        progress_callback: Optional[Callable[[str, int, str], None]] = None,
+        checkpoint_callback: Optional[Callable[['ReportCheckpoint'], None]] = None
+    ) -> Report:
+        """
+        生成报告（支持断点续传）
+        
+        从检查点恢复生成，已完成的章节不会重新生成。
+        
+        Args:
+            checkpoint: 检查点对象，包含恢复所需的所有信息
+            progress_callback: 进度回调函数 (stage, progress, message)
+            checkpoint_callback: 检查点更新回调，用于持久化检查点
+            
+        Returns:
+            Report: 完整报告
+        """
+        # 延迟导入避免循环引用
+        from .report_task_worker import ReportCheckpoint
+        
+        report_id = checkpoint.report_id
+        start_time = datetime.now()
+        
+        report = Report(
+            report_id=report_id,
+            simulation_id=self.simulation_id,
+            graph_id=self.graph_id,
+            simulation_requirement=self.simulation_requirement,
+            status=ReportStatus.PENDING,
+            created_at=checkpoint.started_at or datetime.now().isoformat()
+        )
+        
+        completed_section_titles = []
+        
+        try:
+            # 初始化报告文件夹
+            ReportManager._ensure_report_folder(report_id)
+            
+            # 初始化日志记录器
+            self.report_logger = ReportLogger(report_id)
+            self.console_logger = ReportConsoleLogger(report_id)
+            
+            # 检查是否需要生成大纲
+            if not checkpoint.outline_generated:
+                # 阶段1: 规划大纲
+                report.status = ReportStatus.PLANNING
+                ReportManager.update_progress(
+                    report_id, "planning", 5, "开始规划报告大纲...",
+                    completed_sections=[]
+                )
+                
+                self.report_logger.log_start(
+                    simulation_id=self.simulation_id,
+                    graph_id=self.graph_id,
+                    simulation_requirement=self.simulation_requirement
+                )
+                self.report_logger.log_planning_start()
+                
+                if progress_callback:
+                    progress_callback("planning", 0, "开始规划报告大纲...")
+                
+                outline = self.plan_outline(
+                    progress_callback=lambda stage, prog, msg: 
+                        progress_callback(stage, prog // 5, msg) if progress_callback else None
+                )
+                report.outline = outline
+                
+                self.report_logger.log_planning_complete(outline.to_dict())
+                ReportManager.save_outline(report_id, outline)
+                ReportManager.save_report(report)
+                
+                # 更新检查点
+                checkpoint.mark_outline_complete(outline.to_dict(), len(outline.sections))
+                if checkpoint_callback:
+                    checkpoint_callback(checkpoint)
+                
+                logger.info(f"大纲已保存: {report_id}, 共{len(outline.sections)}个章节")
+            else:
+                # 从检查点恢复大纲
+                outline_data = checkpoint.outline_data
+                sections = []
+                for s in outline_data.get('sections', []):
+                    subsections = [
+                        ReportSection(title=sub['title'], content=sub.get('content', ''))
+                        for sub in s.get('subsections', [])
+                    ]
+                    sections.append(ReportSection(
+                        title=s['title'],
+                        content=s.get('content', ''),
+                        subsections=subsections
+                    ))
+                outline = ReportOutline(
+                    title=outline_data['title'],
+                    summary=outline_data['summary'],
+                    sections=sections
+                )
+                report.outline = outline
+                
+                logger.info(f"从检查点恢复大纲: {report_id}, 已完成章节: {checkpoint.completed_section_indices}")
+            
+            # 阶段2: 逐章节生成（支持断点续传）
+            report.status = ReportStatus.GENERATING
+            total_sections = len(outline.sections)
+            generated_sections = []
+            
+            # 加载已生成的章节内容（用于上下文）
+            for idx in checkpoint.completed_section_indices:
+                section_path = ReportManager._get_section_path(report_id, idx)
+                if os.path.exists(section_path):
+                    with open(section_path, 'r', encoding='utf-8') as f:
+                        generated_sections.append(f.read())
+                    completed_section_titles.append(outline.sections[idx - 1].title)
+            
+            # 从下一个未完成的章节开始生成
+            for i, section in enumerate(outline.sections):
+                section_num = i + 1
+                
+                # 跳过已完成的章节
+                if section_num in checkpoint.completed_section_indices:
+                    logger.info(f"跳过已完成的章节: {section.title} (#{section_num})")
+                    continue
+                
+                base_progress = 20 + int((i / total_sections) * 70)
+                
+                ReportManager.update_progress(
+                    report_id, "generating", base_progress,
+                    f"正在生成章节: {section.title} ({section_num}/{total_sections})",
+                    current_section=section.title,
+                    completed_sections=completed_section_titles
+                )
+                
+                if progress_callback:
+                    progress_callback(
+                        "generating", 
+                        base_progress, 
+                        f"正在生成章节: {section.title} ({section_num}/{total_sections})"
+                    )
+                
+                # 生成主章节内容
+                section_content = self._generate_section_react(
+                    section=section,
+                    outline=outline,
+                    previous_sections=generated_sections,
+                    progress_callback=lambda stage, prog, msg:
+                        progress_callback(
+                            stage, 
+                            base_progress + int(prog * 0.7 / total_sections),
+                            msg
+                        ) if progress_callback else None,
+                    section_index=section_num
+                )
+                
+                section.content = section_content
+                generated_sections.append(f"## {section.title}\n\n{section_content}")
+                
+                # 生成子章节
+                subsection_contents = []
+                for j, subsection in enumerate(section.subsections):
+                    subsection_num = j + 1
+                    
+                    if progress_callback:
+                        progress_callback(
+                            "generating",
+                            base_progress + int(((j + 1) / max(len(section.subsections), 1)) * 5),
+                            f"正在生成子章节: {subsection.title}"
+                        )
+                    
+                    ReportManager.update_progress(
+                        report_id, "generating",
+                        base_progress + int(((j + 1) / max(len(section.subsections), 1)) * 5),
+                        f"正在生成子章节: {subsection.title}",
+                        current_section=subsection.title,
+                        completed_sections=completed_section_titles
+                    )
+                    
+                    subsection_content = self._generate_section_react(
+                        section=subsection,
+                        outline=outline,
+                        previous_sections=generated_sections,
+                        progress_callback=None,
+                        section_index=section_num * 100 + subsection_num
+                    )
+                    subsection.content = subsection_content
+                    generated_sections.append(f"### {subsection.title}\n\n{subsection_content}")
+                    subsection_contents.append((subsection.title, subsection_content))
+                    completed_section_titles.append(f"  └─ {subsection.title}")
+                    
+                    logger.info(f"子章节已生成: {subsection.title}")
+                
+                # 保存章节
+                ReportManager.save_section_with_subsections(
+                    report_id, section_num, section, subsection_contents
+                )
+                completed_section_titles.append(section.title)
+                
+                # 记录完整章节完成日志
+                full_section_content = f"## {section.title}\n\n{section_content}\n\n"
+                for sub_title, sub_content in subsection_contents:
+                    full_section_content += f"### {sub_title}\n\n{sub_content}\n\n"
+                
+                if self.report_logger:
+                    self.report_logger.log_section_full_complete(
+                        section_title=section.title,
+                        section_index=section_num,
+                        full_content=full_section_content.strip(),
+                        subsection_count=len(subsection_contents)
+                    )
+                
+                logger.info(f"章节已保存: {report_id}/section_{section_num:02d}.md")
+                
+                # 更新检查点
+                checkpoint.mark_section_complete(section_num)
+                if checkpoint_callback:
+                    checkpoint_callback(checkpoint)
+                
+                ReportManager.update_progress(
+                    report_id, "generating", 
+                    base_progress + int(70 / total_sections),
+                    f"章节 {section.title} 已完成",
+                    current_section=None,
+                    completed_sections=completed_section_titles
+                )
+            
+            # 阶段3: 组装完整报告
+            if progress_callback:
+                progress_callback("generating", 95, "正在组装完整报告...")
+            
+            ReportManager.update_progress(
+                report_id, "generating", 95, "正在组装完整报告...",
+                completed_sections=completed_section_titles
+            )
+            
+            report.markdown_content = ReportManager.assemble_full_report(report_id, outline)
+            report.status = ReportStatus.COMPLETED
+            report.completed_at = datetime.now().isoformat()
+            
+            total_time_seconds = (datetime.now() - start_time).total_seconds()
+            
+            if self.report_logger:
+                self.report_logger.log_report_complete(
+                    total_sections=total_sections,
+                    total_time_seconds=total_time_seconds
+                )
+            
+            ReportManager.save_report(report)
+            ReportManager.update_progress(
+                report_id, "completed", 100, "报告生成完成",
+                completed_sections=completed_section_titles
+            )
+            
+            if progress_callback:
+                progress_callback("completed", 100, "报告生成完成")
+            
+            logger.info(f"报告生成完成: {report_id}")
+            
+            if self.console_logger:
+                self.console_logger.close()
+                self.console_logger = None
+            
+            return report
+            
+        except Exception as e:
+            logger.error(f"报告生成失败: {str(e)}", exc_info=True)
+            report.status = ReportStatus.FAILED
+            report.error = str(e)
+            
+            if self.report_logger:
+                self.report_logger.log_error(str(e), "failed")
+            
+            try:
+                ReportManager.save_report(report)
+                ReportManager.update_progress(
+                    report_id, "failed", -1, f"报告生成失败: {str(e)}",
+                    completed_sections=completed_section_titles
+                )
+            except Exception:
+                pass
+            
+            if self.console_logger:
+                self.console_logger.close()
+                self.console_logger = None
+            
+            return report
+    
     def chat(
         self, 
         message: str,

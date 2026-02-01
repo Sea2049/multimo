@@ -44,7 +44,9 @@ def main():
     debug = config.DEBUG
     
     # 启动服务
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    # use_reloader=False 禁用自动重载，避免代码修改时中断长时间运行的任务（如报告生成）
+    # 如需代码热重载，可手动重启服务
+    app.run(host=host, port=port, debug=debug, threaded=True, use_reloader=False)
 
 
 if __name__ == '__main__':

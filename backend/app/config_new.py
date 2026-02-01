@@ -54,7 +54,8 @@ class AppConfig(BaseSettings):
     STORAGE_TYPE: str = "memory"  # 可选: memory, database
     DATABASE_URL: Optional[str] = None
     DATABASE_PATH: str = "storage.db"
-    TASKS_DATABASE_PATH: str = str(project_root / "backend" / "tasks.db")
+    # 将 tasks.db 放在 uploads/ 目录下，避免触发 Flask watchdog 重启
+    TASKS_DATABASE_PATH: str = str(project_root / "backend" / "uploads" / "tasks.db")
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
@@ -92,7 +93,7 @@ class AppConfig(BaseSettings):
     LOG_FILE_BACKUP_COUNT: int = 5
     
     # CORS 配置
-    CORS_ORIGINS: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_MAX_AGE: int = 3600  # 预检请求缓存时间（秒）
     

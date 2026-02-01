@@ -113,6 +113,10 @@ const simulationRounds = ref(15)
 
 const simulationId = ref(null)
 
+// Polling timers (non-reactive)
+let pollTimer = null
+let graphPollTimer = null
+
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
   if (viewMode.value === 'graph') return { width: '100%', opacity: 1, transform: 'translateX(0)' }

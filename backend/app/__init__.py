@@ -63,6 +63,16 @@ def create_app(config_override: dict = None) -> Flask:
     task_manager.recover_tasks()
     logger.info("任务恢复检查完成")
     
+    # 恢复中断的报告生成任务
+    try:
+        from app.services.report_task_worker import get_report_task_worker
+        report_worker = get_report_task_worker()
+        recovered_report_tasks = report_worker.recover_interrupted_tasks()
+        if recovered_report_tasks:
+            logger.info(f"已恢复 {len(recovered_report_tasks)} 个中断的报告任务")
+    except Exception as e:
+        logger.warning(f"报告任务恢复检查失败: {e}")
+    
     logger.info("Flask 应用初始化完成")
     
     return app

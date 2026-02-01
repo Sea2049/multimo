@@ -134,84 +134,26 @@ def generate_report():
                 "error": "缺少模拟需求描述"
             }), 400
         
-        # 提前生成 report_id，以便立即返回给前端
-        import uuid
-        report_id = f"report_{uuid.uuid4().hex[:12]}"
+        # 使用新的持久化任务工作器（支持断点续传）
+        from ..services.report_task_worker import get_report_task_worker
         
-        # 创建异步任务
-        task_manager = TaskManager()
-        task_id = task_manager.create_task(
-            task_type="report_generate",
-            metadata={
-                "simulation_id": simulation_id,
-                "graph_id": graph_id,
-                "report_id": report_id
-            }
+        worker = get_report_task_worker()
+        result = worker.start_report_task(
+            simulation_id=simulation_id,
+            graph_id=graph_id,
+            simulation_requirement=simulation_requirement,
+            force_regenerate=force_regenerate
         )
-        
-        # 定义后台任务
-        def run_generate():
-            try:
-                task_manager.update_task(
-                    task_id,
-                    status=TaskStatus.PROCESSING,
-                    progress=0,
-                    message="初始化Report Agent..."
-                )
-                
-                # 创建Report Agent
-                agent = ReportAgent(
-                    graph_id=graph_id,
-                    simulation_id=simulation_id,
-                    simulation_requirement=simulation_requirement
-                )
-                
-                # 进度回调
-                def progress_callback(stage, progress, message):
-                    task_manager.update_task(
-                        task_id,
-                        progress=progress,
-                        message=f"[{stage}] {message}"
-                    )
-                
-                # 生成报告（传入预先生成的 report_id）
-                report = agent.generate_report(
-                    progress_callback=progress_callback,
-                    report_id=report_id
-                )
-                
-                # 保存报告
-                ReportManager.save_report(report)
-                
-                if report.status == ReportStatus.COMPLETED:
-                    task_manager.complete_task(
-                        task_id,
-                        result={
-                            "report_id": report.report_id,
-                            "simulation_id": simulation_id,
-                            "status": "completed"
-                        }
-                    )
-                else:
-                    task_manager.fail_task(task_id, report.error or "报告生成失败")
-                
-            except Exception as e:
-                logger.error(f"报告生成失败: {str(e)}")
-                task_manager.fail_task(task_id, str(e))
-        
-        # 启动后台线程
-        thread = threading.Thread(target=run_generate, daemon=True)
-        thread.start()
         
         return jsonify({
             "success": True,
             "data": {
                 "simulation_id": simulation_id,
-                "report_id": report_id,
-                "task_id": task_id,
-                "status": "generating",
-                "message": "报告生成任务已启动，请通过 /api/report/generate/status 查询进度",
-                "already_generated": False
+                "report_id": result.get("report_id"),
+                "task_id": result.get("task_id"),
+                "status": result.get("status", "pending"),
+                "message": result.get("message", "报告生成任务已启动"),
+                "already_generated": result.get("already_exists", False)
             }
         })
         
@@ -422,14 +364,15 @@ def download_report(report_id: str):
         md_path = ReportManager._get_report_markdown_path(report_id)
         
         if not os.path.exists(md_path):
-            # 如果MD文件不存在，生成一个临时文件
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
-                f.write(report.markdown_content)
-                temp_path = f.name
+            # 如果MD文件不存在，使用内存缓冲区返回
+            import io
+            buffer = io.BytesIO()
+            buffer.write(report.markdown_content.encode('utf-8'))
+            buffer.seek(0)
             
             return send_file(
-                temp_path,
+                buffer,
+                mimetype='text/markdown',
                 as_attachment=True,
                 download_name=f"{report_id}.md"
             )
@@ -513,6 +456,17 @@ def chat_with_report_agent():
             return jsonify({
                 "success": False,
                 "error": "请提供 message"
+            }), 400
+        
+        # 输入验证和清理
+        simulation_id = sanitize_string(simulation_id, max_length=100)
+        message = sanitize_string(message, max_length=5000)
+        
+        sql_result = validate_no_sql_injection(message, "message")
+        if not sql_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "输入包含敏感字符"
             }), 400
         
         # 获取模拟和项目信息
@@ -921,6 +875,24 @@ def search_graph_tool():
                 "error": "请提供 graph_id 和 query"
             }), 400
         
+        # 输入验证和清理
+        graph_id = sanitize_string(graph_id, max_length=100)
+        query = sanitize_string(query, max_length=1000)
+        
+        graph_result = validate_graph_id(graph_id, "graph_id")
+        if not graph_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "无效的 graph_id 格式"
+            }), 400
+        
+        sql_result = validate_no_sql_injection(query, "query")
+        if not sql_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "输入包含敏感字符"
+            }), 400
+        
         from ..services.zep_tools import ZepToolsService
         
         tools = ZepToolsService()
@@ -959,6 +931,16 @@ def get_graph_statistics_tool():
             return jsonify({
                 "success": False,
                 "error": "请提供 graph_id"
+            }), 400
+        
+        # 输入验证和清理
+        graph_id = sanitize_string(graph_id, max_length=100)
+        
+        graph_result = validate_graph_id(graph_id, "graph_id")
+        if not graph_result.is_valid:
+            return jsonify({
+                "success": False,
+                "error": "无效的 graph_id 格式"
             }), 400
         
         from ..services.zep_tools import ZepToolsService

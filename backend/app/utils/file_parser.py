@@ -1,17 +1,25 @@
 """
 文件解析工具
 支持PDF、Markdown、TXT文件的文本提取
+支持扫描版 PDF 的 OCR 识别
 """
 
 import os
+import logging
 from pathlib import Path
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class FileParser:
     """文件解析器"""
     
     SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.markdown', '.txt'}
+    
+    # OCR 相关配置
+    OCR_ENABLED = True  # 是否启用 OCR
+    OCR_LANG = 'chi_sim+eng'  # OCR 语言：简体中文 + 英文
     
     @classmethod
     def extract_text(cls, file_path: str) -> str:
@@ -43,22 +51,97 @@ class FileParser:
         
         raise ValueError(f"无法处理的文件格式: {suffix}")
     
-    @staticmethod
-    def _extract_from_pdf(file_path: str) -> str:
-        """从PDF提取文本"""
+    @classmethod
+    def _extract_from_pdf(cls, file_path: str) -> str:
+        """从PDF提取文本，支持扫描版 PDF 的 OCR"""
         try:
             import fitz  # PyMuPDF
         except ImportError:
             raise ImportError("需要安装PyMuPDF: pip install PyMuPDF")
         
         text_parts = []
+        ocr_used = False
+        
         with fitz.open(file_path) as doc:
-            for page in doc:
+            for page_num, page in enumerate(doc):
+                # 首先尝试直接提取文本
                 text = page.get_text()
+                
                 if text.strip():
                     text_parts.append(text)
+                elif cls.OCR_ENABLED:
+                    # 如果页面没有文本，尝试使用 OCR
+                    ocr_text = cls._ocr_page(page, page_num + 1)
+                    if ocr_text.strip():
+                        text_parts.append(ocr_text)
+                        ocr_used = True
+        
+        if ocr_used:
+            logger.info(f"PDF 使用了 OCR 识别: {file_path}")
         
         return "\n\n".join(text_parts)
+    
+    @classmethod
+    def _ocr_page(cls, page, page_num: int) -> str:
+        """使用 OCR 识别 PDF 页面"""
+        try:
+            import pytesseract
+            from PIL import Image
+            import io
+            
+            # 配置 Tesseract 路径
+            # 1. 优先从环境变量读取（推荐在 .env 中配置 TESSERACT_CMD）
+            tesseract_cmd = os.environ.get('TESSERACT_CMD')
+            if tesseract_cmd and os.path.exists(tesseract_cmd):
+                pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+            else:
+                # 2. 回退到跨平台默认路径
+                default_paths = [
+                    # Windows - 常见安装路径
+                    r"E:\Program Files\Tesseract-OCR\tesseract.exe",
+                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                    r"D:\Program Files\Tesseract-OCR\tesseract.exe",
+                    # Linux
+                    "/usr/bin/tesseract",
+                    "/usr/local/bin/tesseract",
+                    # macOS (Homebrew)
+                    "/opt/homebrew/bin/tesseract",
+                    "/usr/local/Cellar/tesseract/*/bin/tesseract",
+                ]
+                for path in default_paths:
+                    if os.path.exists(path):
+                        pytesseract.pytesseract.tesseract_cmd = path
+                        break
+                    
+        except ImportError:
+            logger.warning(f"第 {page_num} 页无文本且 OCR 依赖未安装，跳过")
+            return ""
+        
+        try:
+            import fitz
+            
+            # 将页面渲染为图片（使用 2x 缩放提高清晰度）
+            zoom = 2.0  # 缩放倍数
+            mat = fitz.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=mat)
+            img_data = pix.tobytes("png")
+            
+            # 转换为 PIL Image
+            image = Image.open(io.BytesIO(img_data))
+            
+            # 使用 Tesseract OCR
+            text = pytesseract.image_to_string(image, lang=cls.OCR_LANG)
+            
+            logger.debug(f"OCR 第 {page_num} 页: 提取 {len(text)} 字符")
+            return text
+            
+        except pytesseract.TesseractNotFoundError:
+            logger.warning(f"Tesseract OCR 未安装，无法识别第 {page_num} 页")
+            return ""
+        except Exception as e:
+            logger.warning(f"OCR 第 {page_num} 页失败: {e}")
+            return ""
     
     @staticmethod
     def _extract_from_md(file_path: str) -> str:

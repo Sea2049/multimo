@@ -158,3 +158,12 @@ export const listSimulations = (params) => {
 export const exportSimulationData = (simulationId) => {
   return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'}/api/simulation/${simulationId}/export`
 }
+
+/**
+ * 获取模拟动作历史
+ * @param {string} simulationId
+ * @param {Object} params - { limit?, offset?, platform?, agent_id?, round_num? }
+ */
+export const getSimulationActions = (simulationId, params = {}) => {
+  return requestWithRetry(() => service.get(`/api/simulation/${simulationId}/actions`, { params }), 3, 1000)
+}

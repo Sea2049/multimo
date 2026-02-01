@@ -303,3 +303,196 @@ def get_logger(log_path: Optional[str] = None) -> ActionLogger:
         _global_logger = ActionLogger("actions.jsonl")
     
     return _global_logger
+
+
+# ============ 子进程状态更新器 ============
+
+class RunStateUpdater:
+    """
+    子进程中更新 run_state.json 的工具类
+    
+    用于在模拟子进程中直接更新状态文件，解决父进程重启导致监控线程中断的问题。
+    """
+    
+    def __init__(self, sim_dir: str, simulation_id: str, total_rounds: int, total_hours: int = 96):
+        """
+        初始化状态更新器
+        
+        Args:
+            sim_dir: 模拟目录路径
+            simulation_id: 模拟ID
+            total_rounds: 总轮数
+            total_hours: 总模拟小时数
+        """
+        self.sim_dir = sim_dir
+        self.state_file = os.path.join(sim_dir, "run_state.json")
+        self.simulation_id = simulation_id
+        self.total_rounds = total_rounds
+        self.total_hours = total_hours
+    
+    def _load_state(self) -> Dict[str, Any]:
+        """加载现有状态"""
+        if os.path.exists(self.state_file):
+            try:
+                with open(self.state_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        # 返回默认状态
+        return {
+            "simulation_id": self.simulation_id,
+            "runner_status": "running",
+            "current_round": 0,
+            "total_rounds": self.total_rounds,
+            "simulated_hours": 0,
+            "total_simulation_hours": self.total_hours,
+            "progress_percent": 0.0,
+            "twitter_current_round": 0,
+            "reddit_current_round": 0,
+            "twitter_simulated_hours": 0,
+            "reddit_simulated_hours": 0,
+            "twitter_running": True,
+            "reddit_running": True,
+            "twitter_completed": False,
+            "reddit_completed": False,
+            "twitter_actions_count": 0,
+            "reddit_actions_count": 0,
+            "total_actions_count": 0,
+            "started_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "completed_at": None,
+            "error": None,
+            "process_pid": os.getpid(),
+            "recent_actions": [],
+            "rounds_count": 0
+        }
+    
+    def _save_state(self, state: Dict[str, Any]):
+        """保存状态到文件"""
+        os.makedirs(self.sim_dir, exist_ok=True)
+        with open(self.state_file, 'w', encoding='utf-8') as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    
+    def update(self, **kwargs):
+        """
+        原子更新状态文件
+        
+        Args:
+            **kwargs: 要更新的字段
+        """
+        state = self._load_state()
+        state.update(kwargs)
+        state["updated_at"] = datetime.now().isoformat()
+        
+        # 计算进度百分比
+        current_round = state.get("current_round", 0)
+        total_rounds = state.get("total_rounds", self.total_rounds)
+        if total_rounds > 0:
+            state["progress_percent"] = round(current_round / total_rounds * 100, 1)
+        
+        self._save_state(state)
+    
+    def update_round(
+        self,
+        platform: str,
+        current_round: int,
+        simulated_hours: int,
+        actions_count: int
+    ):
+        """
+        更新轮次进度（每轮结束时调用）
+        
+        Args:
+            platform: 平台名称 (twitter/reddit)
+            current_round: 当前轮次
+            simulated_hours: 已模拟小时数
+            actions_count: 该平台总动作数
+        """
+        state = self._load_state()
+        
+        if platform == "twitter":
+            state["twitter_current_round"] = current_round
+            state["twitter_simulated_hours"] = simulated_hours
+            state["twitter_actions_count"] = actions_count
+        elif platform == "reddit":
+            state["reddit_current_round"] = current_round
+            state["reddit_simulated_hours"] = simulated_hours
+            state["reddit_actions_count"] = actions_count
+        
+        # 更新总体进度（取两个平台的最大值）
+        state["current_round"] = max(
+            state.get("twitter_current_round", 0),
+            state.get("reddit_current_round", 0)
+        )
+        state["simulated_hours"] = max(
+            state.get("twitter_simulated_hours", 0),
+            state.get("reddit_simulated_hours", 0)
+        )
+        state["total_actions_count"] = (
+            state.get("twitter_actions_count", 0) +
+            state.get("reddit_actions_count", 0)
+        )
+        state["rounds_count"] = state["current_round"]
+        state["updated_at"] = datetime.now().isoformat()
+        
+        # 计算进度百分比
+        total_rounds = state.get("total_rounds", self.total_rounds)
+        if total_rounds > 0:
+            state["progress_percent"] = round(state["current_round"] / total_rounds * 100, 1)
+        
+        self._save_state(state)
+    
+    def mark_platform_completed(self, platform: str, total_actions: int):
+        """
+        标记平台完成
+        
+        Args:
+            platform: 平台名称 (twitter/reddit)
+            total_actions: 该平台总动作数
+        """
+        state = self._load_state()
+        
+        if platform == "twitter":
+            state["twitter_completed"] = True
+            state["twitter_running"] = False
+            state["twitter_actions_count"] = total_actions
+        elif platform == "reddit":
+            state["reddit_completed"] = True
+            state["reddit_running"] = False
+            state["reddit_actions_count"] = total_actions
+        
+        state["total_actions_count"] = (
+            state.get("twitter_actions_count", 0) +
+            state.get("reddit_actions_count", 0)
+        )
+        state["updated_at"] = datetime.now().isoformat()
+        
+        # 检查是否所有平台都已完成
+        twitter_done = state.get("twitter_completed", False) or not state.get("twitter_running", False)
+        reddit_done = state.get("reddit_completed", False) or not state.get("reddit_running", False)
+        
+        if twitter_done and reddit_done:
+            state["runner_status"] = "completed"
+            state["completed_at"] = datetime.now().isoformat()
+        
+        self._save_state(state)
+    
+    def mark_completed(self):
+        """标记模拟完成"""
+        self.update(
+            runner_status="completed",
+            twitter_running=False,
+            reddit_running=False,
+            completed_at=datetime.now().isoformat()
+        )
+    
+    def mark_failed(self, error: str):
+        """标记模拟失败"""
+        self.update(
+            runner_status="failed",
+            twitter_running=False,
+            reddit_running=False,
+            error=error,
+            completed_at=datetime.now().isoformat()
+        )

@@ -306,7 +306,9 @@ class AutoPilotManager:
             args=(simulation_id,),
             daemon=True
         )
-        self._running_tasks[simulation_id] = thread
+        # 线程安全：在锁内更新共享字典
+        with self._lock:
+            self._running_tasks[simulation_id] = thread
         thread.start()
         
         logger.info(f"启动自动驾驶: simulation_id={simulation_id}")
@@ -734,9 +736,10 @@ class AutoPilotManager:
         state.step_message = "已手动停止"
         self._save_state(state)
         
-        # 清理运行任务
-        if simulation_id in self._running_tasks:
-            del self._running_tasks[simulation_id]
+        # 清理运行任务（线程安全）
+        with self._lock:
+            if simulation_id in self._running_tasks:
+                del self._running_tasks[simulation_id]
         
         logger.info(f"自动驾驶已停止: {simulation_id}")
         return state
@@ -756,9 +759,10 @@ class AutoPilotManager:
         state.step_message = "自动驾驶完成"
         self._save_state(state)
         
-        # 清理运行任务
-        if simulation_id in self._running_tasks:
-            del self._running_tasks[simulation_id]
+        # 清理运行任务（线程安全）
+        with self._lock:
+            if simulation_id in self._running_tasks:
+                del self._running_tasks[simulation_id]
         
         logger.info(f"自动驾驶完成: {simulation_id}")
     
@@ -777,9 +781,10 @@ class AutoPilotManager:
         state.error_step = state.current_step.value
         self._save_state(state)
         
-        # 清理运行任务
-        if simulation_id in self._running_tasks:
-            del self._running_tasks[simulation_id]
+        # 清理运行任务（线程安全）
+        with self._lock:
+            if simulation_id in self._running_tasks:
+                del self._running_tasks[simulation_id]
         
         logger.error(f"自动驾驶失败: {simulation_id}, error={error}")
     
@@ -793,18 +798,20 @@ class AutoPilotManager:
         Returns:
             AutoPilotState
         """
-        # 停止正在运行的任务
-        if simulation_id in self._running_tasks:
-            del self._running_tasks[simulation_id]
+        # 清理共享资源（线程安全）
+        with self._lock:
+            # 停止正在运行的任务
+            if simulation_id in self._running_tasks:
+                del self._running_tasks[simulation_id]
+            
+            # 清理内存缓存
+            if simulation_id in self._states:
+                del self._states[simulation_id]
         
-        # 删除状态文件
+        # 删除状态文件（文件操作不需要锁保护）
         state_file = self._get_state_file(simulation_id)
         if os.path.exists(state_file):
             os.remove(state_file)
-        
-        # 清理内存缓存
-        if simulation_id in self._states:
-            del self._states[simulation_id]
         
         logger.info(f"自动驾驶状态已重置: {simulation_id}")
         

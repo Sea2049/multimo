@@ -290,6 +290,58 @@ def get_report_markdown(simulation_id: str):
 
 from flask import send_file
 
+
+def _get_report_id_for_simulation(simulation_id: str) -> str:
+    """
+    获取 simulation 对应的最新 report_id
+    
+    遍历 reports 目录，找出 simulation_id 匹配的 report，
+    如果有多个则返回最新的（按 created_at 排序）
+    """
+    import json
+    
+    # reports 目录路径
+    reports_dir = os.path.join(os.path.dirname(__file__), '../../../uploads/reports')
+    if not os.path.exists(reports_dir):
+        return None
+    
+    matching_reports = []
+    
+    try:
+        for report_folder in os.listdir(reports_dir):
+            report_path = os.path.join(reports_dir, report_folder)
+            if not os.path.isdir(report_path):
+                continue
+            
+            meta_file = os.path.join(report_path, "meta.json")
+            if not os.path.exists(meta_file):
+                continue
+            
+            try:
+                with open(meta_file, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                
+                if meta.get("simulation_id") == simulation_id:
+                    matching_reports.append({
+                        "report_id": meta.get("report_id"),
+                        "created_at": meta.get("created_at", ""),
+                        "status": meta.get("status", "")
+                    })
+            except Exception:
+                continue
+        
+        if not matching_reports:
+            return None
+        
+        # 按创建时间倒序排序，返回最新的
+        matching_reports.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return matching_reports[0].get("report_id")
+        
+    except Exception as e:
+        logger.warning(f"查找 simulation {simulation_id} 的 report 失败: {e}")
+        return None
+
+
 @api_v1_bp.route("/report/<simulation_id>/download", methods=["GET"])
 def download_report(simulation_id: str):
     """下载报告文件"""
@@ -297,20 +349,53 @@ def download_report(simulation_id: str):
         format_type = request.args.get("format", "markdown")  # markdown, json
         logger.info(f"接收到下载报告请求: simulation_id={simulation_id}, format={format_type}")
         
-        sim_manager = SimulationManager()
-        report_dir = os.path.join(sim_manager.SIMULATION_DATA_DIR, simulation_id, "report")
+        # 通过 simulation_id 找到对应的 report_id
+        report_id = _get_report_id_for_simulation(simulation_id)
+        
+        if not report_id:
+            return jsonify(get_error_response(
+                "找不到该模拟的报告，请先生成报告", 404
+            )), 404
+        
+        # 报告存储在 uploads/reports/{report_id}/ 目录
+        reports_dir = os.path.join(os.path.dirname(__file__), '../../../uploads/reports')
+        report_dir = os.path.join(reports_dir, report_id)
         
         if format_type == "json":
-            file_path = os.path.join(report_dir, "report.json")
+            # 尝试读取 meta.json 或 outline.json
+            file_path = os.path.join(report_dir, "meta.json")
+            if not os.path.exists(file_path):
+                file_path = os.path.join(report_dir, "outline.json")
             mimetype = "application/json"
             download_name = f"report_{simulation_id}.json"
         else:
-            file_path = os.path.join(report_dir, "report.md")
+            # 优先使用 full_report.md，否则尝试合并各章节
+            file_path = os.path.join(report_dir, "full_report.md")
+            if not os.path.exists(file_path):
+                # 尝试合并各章节文件
+                sections = []
+                for i in range(1, 20):  # 最多支持 20 个章节
+                    section_file = os.path.join(report_dir, f"section_{i:02d}.md")
+                    if os.path.exists(section_file):
+                        with open(section_file, 'r', encoding='utf-8') as f:
+                            sections.append(f.read())
+                    else:
+                        break
+                
+                if sections:
+                    # 创建临时合并文件
+                    combined_content = "\n\n---\n\n".join(sections)
+                    file_path = os.path.join(report_dir, "combined_report.md")
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(combined_content)
+            
             mimetype = "text/markdown"
             download_name = f"report_{simulation_id}.md"
             
         if not os.path.exists(file_path):
-            return jsonify(get_error_response("报告文件不存在，请先生成报告", 404)), 404
+            return jsonify(get_error_response(
+                "报告文件不存在，可能报告尚未生成完成", 404
+            )), 404
             
         return send_file(
             file_path,

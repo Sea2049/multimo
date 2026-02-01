@@ -172,7 +172,7 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData, addDocuments, getTaskStatus } from '../api/graph'
-import { getSimulation, exportSimulationData } from '../api/simulation'
+import { getSimulation, exportSimulationData, getSimulationActions } from '../api/simulation'
 import { getReport } from '../api/report'
 
 const route = useRoute()
@@ -266,6 +266,25 @@ const goToSimulationView = () => {
       params: { simulationId: simulationId.value },
       query: { view: 'true' }  // 添加查看模式标记
     })
+  }
+}
+
+const loadSimulationLogs = async () => {
+  if (!simulationId.value) return
+  
+  try {
+    const res = await getSimulationActions(simulationId.value, { limit: 500 })
+    if (res.data?.success && res.data?.data?.actions) {
+      simulationLogs.value = res.data.data.actions.map(action => ({
+        time: action.timestamp || action.created_at,
+        platform: action.platform,
+        agent: action.agent_name || `Agent ${action.agent_id}`,
+        type: action.action_type,
+        content: action.content || action.text || ''
+      }))
+    }
+  } catch (err) {
+    console.error('加载模拟日志失败:', err)
   }
 }
 

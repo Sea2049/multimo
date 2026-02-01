@@ -636,6 +636,59 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
+### v1.61 (2026-02-01)
+
+**版本固化：**
+- 🎉 正式发布 v1.61 版本
+- 🔄 报告生成断点续传功能
+- 📄 扫描版 PDF OCR 识别支持
+- 📥 报告下载功能增强
+- 🔧 LLM 客户端优化
+
+**新增功能：**
+- ✅ 报告任务工作器 (`report_task_worker.py`)：
+  - 使用独立线程运行报告生成，与 Flask 主进程隔离
+  - 任务状态持久化到数据库
+  - 支持从检查点恢复（断点续传）
+  - 服务重启后自动恢复中断的任务
+- ✅ 扫描版 PDF OCR 识别：
+  - 自动检测 PDF 是否为扫描版（无文字或文字过少）
+  - 使用 pytesseract 进行 OCR 识别
+  - 支持中英文混合文档 (`chi_sim+eng`)
+- ✅ 报告下载功能改进：
+  - 通过 simulation_id 自动查找对应的 report_id
+  - 支持多章节报告自动合并
+  - 优先返回完整报告，否则合并各章节
+
+**后端改进：**
+- 🔧 新增 `services/report_task_worker.py`：
+  - `ReportCheckpoint` 类：报告生成检查点数据模型
+  - `ReportTaskWorker` 类：报告任务工作器
+  - `get_report_task_worker()` 全局单例
+- 🔧 `report_agent.py` 增强：
+  - 新增 `generate_report_with_checkpoint()` 方法
+  - 支持进度回调和检查点保存
+- 🔧 `file_parser.py` 增强：
+  - `OCR_ENABLED` 配置开关
+  - `_extract_from_pdf_with_ocr()` OCR 提取方法
+  - `_is_scanned_pdf()` 扫描版检测
+- 🔧 `llm_client.py` 优化：
+  - 增强错误处理和重试机制
+  - 优化流式响应处理
+- 🔧 `api/v1/report.py` 改进：
+  - 新增 `_get_report_id_for_simulation()` 辅助函数
+  - 改进 `/report/<simulation_id>/download` 端点
+
+**依赖更新：**
+- 新增 `pytesseract` 依赖（OCR 支持）
+- 新增 `Pillow` 依赖（图像处理）
+
+**技术改进：**
+- 报告生成任务与 Flask 主进程解耦
+- 支持长时间运行任务的断点恢复
+- 扫描版 PDF 自动识别和处理
+- 多格式报告下载支持
+
 ### v1.60 (2026-01-30)
 
 **版本固化：**

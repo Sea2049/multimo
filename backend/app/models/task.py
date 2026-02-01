@@ -243,8 +243,11 @@ class TaskManager:
                     task.progress_detail = progress_detail
                 
                 task_dict = self._task_to_dict(task)
-                # 移除 task_id，避免重复传递参数
+                # 移除不应手动传递给存储层的字段
                 task_dict.pop('task_id', None)
+                task_dict.pop('updated_at', None)  # 数据库自动更新
+                task_dict.pop('created_at', None)  # 创建时间不应被更新
+                task_dict.pop('task_type', None)   # 任务类型不应被更新
                 self._storage.update_task(task_id, **task_dict)
     
     def complete_task(self, task_id: str, result: Dict):
@@ -306,11 +309,10 @@ class TaskManager:
                     task.error = "任务因服务重启而中断"
                     task.updated_at = datetime.now()
                     
-                    task_dict = self._task_to_dict(task)
+                    # 只更新允许的字段，updated_at 由数据库自动管理
                     self._storage.update_task(
                         task.task_id,
                         status=task.status.value,
-                        error=task.error,
-                        updated_at=task.updated_at.isoformat()
+                        error=task.error
                     )
 
