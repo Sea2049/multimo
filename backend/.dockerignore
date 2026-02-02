@@ -1,0 +1,57 @@
+# ===========================================
+# Docker Build 排除文件
+# ===========================================
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+
+# 测试相关
+tests/
+*_test_results.json
+test_*.py
+conftest.py
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 数据库文件（通过 volume 挂载）
+*.db
+*.sqlite3
+
+# 开发文件
+.env
+.env.*
+!.env.example
+*.md
+!README.md
+
+# IDE/编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 包管理
+uv.lock
+.uv/
+
+# Git
+.git/
+.gitignore
+
+# 日志和上传（通过 volume 挂载）
+logs/
+uploads/
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
