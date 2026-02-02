@@ -3,6 +3,7 @@
 from flask import request, jsonify
 from app.api import api_v1_bp, get_response, get_error_response
 from app.utils import get_logger, validate_api_request
+from app.config_new import get_config
 
 logger = get_logger(__name__)
 
@@ -79,7 +80,7 @@ def get_graph(graph_id: str):
         
         if not os.path.exists(graph_file):
             # 2. 尝试在 uploads/graphs 查找
-            graph_file = os.path.join(os.path.dirname(__file__), '../../uploads/graphs', f"{graph_id}.json")
+            graph_file = os.path.join(get_config().UPLOAD_FOLDER, 'graphs', f"{graph_id}.json")
             
         if not os.path.exists(graph_file):
              return jsonify(get_error_response("图谱不存在", 404)), 404
@@ -111,7 +112,7 @@ def export_graph(graph_id: str):
         
         if not os.path.exists(graph_file):
             # 2. 尝试在 uploads/graphs 查找
-            graph_file = os.path.join(os.path.dirname(__file__), '../../uploads/graphs', f"{graph_id}.json")
+            graph_file = os.path.join(get_config().UPLOAD_FOLDER, 'graphs', f"{graph_id}.json")
             
         if not os.path.exists(graph_file):
              return jsonify(get_error_response("图谱不存在", 404)), 404

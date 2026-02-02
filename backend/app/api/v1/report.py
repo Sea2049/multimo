@@ -8,6 +8,7 @@ from app.utils import get_logger, validate_api_request
 from app.modules.report import ReportGenerator
 from app.services.simulation_manager import SimulationManager
 from app.models.project import ProjectManager
+from app.config_new import get_config
 
 logger = get_logger(__name__)
 
@@ -301,7 +302,7 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
     import json
     
     # reports 目录路径
-    reports_dir = os.path.join(os.path.dirname(__file__), '../../../uploads/reports')
+    reports_dir = os.path.join(get_config().UPLOAD_FOLDER, 'reports')
     if not os.path.exists(reports_dir):
         return None
     
@@ -358,7 +359,7 @@ def download_report(simulation_id: str):
             )), 404
         
         # 报告存储在 uploads/reports/{report_id}/ 目录
-        reports_dir = os.path.join(os.path.dirname(__file__), '../../../uploads/reports')
+        reports_dir = os.path.join(get_config().UPLOAD_FOLDER, 'reports')
         report_dir = os.path.join(reports_dir, report_id)
         
         if format_type == "json":

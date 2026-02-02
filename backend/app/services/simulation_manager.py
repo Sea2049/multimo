@@ -155,16 +155,13 @@ class SimulationManager:
     4. 准备预设脚本所需的所有文件
     """
     
-    # 模拟数据存储目录
-    SIMULATION_DATA_DIR = os.path.join(
-        os.path.dirname(__file__), 
-        '../../uploads/simulations'
-    )
-    
     # 类级别线程锁，保护共享状态（线程安全）
     _lock = threading.RLock()
     
     def __init__(self):
+        # 模拟数据存储目录 - 使用统一配置，确保与 API 路由一致
+        self.SIMULATION_DATA_DIR = get_config().SIMULATION_DATA_DIR
+        
         # 确保目录存在
         os.makedirs(self.SIMULATION_DATA_DIR, exist_ok=True)
         

@@ -15,6 +15,10 @@ from typing import Optional
 project_root = Path(__file__).parent.parent.parent
 env_file = project_root / ".env"
 
+# 后端根目录 (用于数据路径，兼容本地开发和 Docker 环境)
+# 本地: e:\trae\multimo\backend, Docker: /app
+backend_root = Path(__file__).parent.parent
+
 if env_file.exists():
     load_dotenv(env_file)
 else:
@@ -55,11 +59,11 @@ class AppConfig(BaseSettings):
     DATABASE_URL: Optional[str] = None
     DATABASE_PATH: str = "storage.db"
     # 将 tasks.db 放在 uploads/ 目录下，避免触发 Flask watchdog 重启
-    TASKS_DATABASE_PATH: str = str(project_root / "backend" / "uploads" / "tasks.db")
+    TASKS_DATABASE_PATH: str = str(backend_root / "uploads" / "tasks.db")
     
     # 文件上传配置
     MAX_UPLOAD_SIZE: int = 50 * 1024 * 1024  # 50MB
-    UPLOAD_FOLDER: str = str(project_root / "backend" / "uploads")
+    UPLOAD_FOLDER: str = str(backend_root / "uploads")
     ALLOWED_EXTENSIONS: set = {"pdf", "md", "txt", "markdown"}
     
     # 文本处理配置
@@ -69,7 +73,7 @@ class AppConfig(BaseSettings):
     # 模拟配置（重构后的实现）
     DEFAULT_SIMULATION_ROUNDS: int = 10
     MAX_AGENTS: int = 100
-    SIMULATION_DATA_DIR: str = str(project_root / "backend" / "uploads" / "simulations")
+    SIMULATION_DATA_DIR: str = str(backend_root / "uploads" / "simulations")
     
     # 平台可用动作配置（重构后的实现）
     TWITTER_ACTIONS: list = [
@@ -88,7 +92,7 @@ class AppConfig(BaseSettings):
     
     # 日志配置
     LOG_LEVEL: str = "INFO"
-    LOG_DIR: str = str(project_root / "backend" / "logs")
+    LOG_DIR: str = str(backend_root / "logs")
     LOG_FILE_ROTATION_SIZE: int = 10 * 1024 * 1024  # 10MB
     LOG_FILE_BACKUP_COUNT: int = 5
     
