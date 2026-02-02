@@ -247,7 +247,7 @@ const updateStatus = (status) => {
 // --- Layout Methods ---
 const handleExportReport = () => {
   if (!simulationId.value) return
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const url = `${baseUrl}/api/v1/report/${simulationId.value}/download?format=markdown`
   window.open(url, '_blank')
 }
