@@ -771,12 +771,17 @@ class ReportAgent:
         从LLM响应中解析工具调用
         
         支持的格式：
-        <tool_call>
-        {"name": "tool_name", "parameters": {"param1": "value1"}}
-        </tool_call>
+        1. XML风格：
+           <tool_call>
+           {"name": "tool_name", "parameters": {"param1": "value1"}}
+           </tool_call>
         
-        或者：
-        [TOOL_CALL] tool_name(param1="value1", param2="value2")
+        2. 函数调用风格：
+           [TOOL_CALL] tool_name(param1="value1", param2="value2")
+        
+        3. ReACT Action风格（新增）：
+           Action:
+           {"name": "tool_name", "parameters": {"param1": "value1"}}
         """
         tool_calls = []
         
@@ -785,7 +790,8 @@ class ReportAgent:
         for match in re.finditer(xml_pattern, response, re.DOTALL):
             try:
                 call_data = json.loads(match.group(1))
-                tool_calls.append(call_data)
+                if "name" in call_data:
+                    tool_calls.append(call_data)
             except json.JSONDecodeError:
                 pass
         
@@ -804,6 +810,22 @@ class ReportAgent:
                 "name": tool_name,
                 "parameters": params
             })
+        
+        # 格式3: ReACT Action风格（常见于 GPT/Claude 输出）
+        # 匹配 "Action:" 或 "Action:\n" 后跟 JSON 对象
+        # 注意：只匹配第一个 Action，避免解析 LLM 幻想的后续 Action
+        if not tool_calls:
+            # 匹配 Action: 后跟 JSON（支持 Action: 和 Action:\n 两种格式）
+            action_pattern = r'Action:\s*\n?\s*(\{"name":\s*"[^"]+",\s*"parameters":\s*\{[^}]*\}\})'
+            match = re.search(action_pattern, response, re.DOTALL)
+            if match:
+                try:
+                    call_data = json.loads(match.group(1))
+                    if "name" in call_data:
+                        tool_calls.append(call_data)
+                        logger.debug(f"解析到 ReACT Action 格式工具调用: {call_data.get('name')}")
+                except json.JSONDecodeError as e:
+                    logger.debug(f"ReACT Action JSON 解析失败: {e}")
         
         return tool_calls
     
@@ -1097,17 +1119,24 @@ class ReportAgent:
 - interview_agents: 用于采访模拟Agent，获取不同角色的真实观点和看法
 
 ═══════════════════════════════════════════════════════════════
-【ReACT工作流程】
+【ReACT工作流程 - 重要！】
 ═══════════════════════════════════════════════════════════════
 
-1. Thought: [分析需要什么信息，规划检索策略]
-2. Action: [调用工具获取信息]
+每轮只做两件事，然后停止等待系统返回：
+
+1. Thought: [分析需要什么信息]
+2. Action: [调用一个工具] - 使用以下格式：
    <tool_call>
    {{"name": "工具名称", "parameters": {{"参数名": "参数值"}}}}
    </tool_call>
-3. Observation: [分析工具返回的结果]
-4. 重复步骤1-3，直到收集到足够信息（最多5轮）
-5. Final Answer: [基于检索结果撰写章节内容]
+
+⚠️ 【关键】输出 Action 后必须立即停止！
+- 不要自己生成 Observation
+- 不要继续输出下一个 Thought 或 Action
+- 系统会执行工具并返回真实结果
+- 收到 Observation 后再继续下一轮
+
+完整流程：你输出 Thought+Action → 系统返回 Observation → 你再输出 Thought+Action → ... → 最后输出 Final Answer
 
 ═══════════════════════════════════════════════════════════════
 【章节内容要求】
@@ -1170,10 +1199,11 @@ class ReportAgent:
 - ✅ 章节标题由系统自动添加
 - ✅ 直接写正文，用**粗体**代替小节标题
 
-请开始：
-1. 首先思考（Thought）这个章节需要什么信息
-2. 然后调用工具（Action）获取模拟数据
-3. 收集足够信息后输出 Final Answer（纯正文，无任何标题）"""
+请开始（记住：输出 Action 后立即停止，等待系统返回结果）：
+1. 输出 Thought（分析需要什么信息）
+2. 输出 Action（使用 <tool_call> 格式调用工具）
+3. 【停止】等待系统返回 Observation
+4. 重复直到信息足够，然后输出 Final Answer"""
 
         messages = [
             {"role": "system", "content": system_prompt},
