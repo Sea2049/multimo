@@ -25,7 +25,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          查看模拟过程
+          <span class="btn-text">返回模拟</span>
         </button>
         <button v-if="simulationId" class="nav-btn" @click="toggleSimulationLogs" title="查看模拟日志">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -35,12 +35,12 @@
             <line x1="16" y1="17" x2="8" y2="17"></line>
             <line x1="10" y1="9" x2="8" y2="9"></line>
           </svg>
-          {{ showSimulationLogs ? '隐藏日志' : '查看日志' }}
+          <span class="btn-text">{{ showSimulationLogs ? '隐藏日志' : '日志' }}</span>
         </button>
-        <div v-if="simulationId" class="step-divider"></div>
+        <div class="step-divider hide-narrow"></div>
         <div class="workflow-step">
           <span class="step-num">Step 4/5</span>
-          <span class="step-name">报告生成</span>
+          <span class="step-name btn-text">报告生成</span>
         </div>
         <div class="step-divider"></div>
         <button v-if="projectData" class="export-btn secondary" @click="handleAddDocuments" title="补充文档到知识库">
@@ -50,27 +50,27 @@
             <line x1="12" y1="18" x2="12" y2="12"></line>
             <line x1="9" y1="15" x2="15" y2="15"></line>
           </svg>
-          补充文档
+          <span class="btn-text">补充文档</span>
         </button>
-        <button v-if="simulationId" class="export-btn secondary" @click="handleExportReport" title="导出报告Markdown">
+        <button v-if="simulationId" class="export-btn secondary" @click="handleExportReport" title="导出报告 Markdown">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Export Report
+          <span class="btn-text">导出报告</span>
         </button>
-        <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据">
+        <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据（含图谱）">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Export All Data
+          <span class="btn-text">导出全部</span>
         </button>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
-          {{ statusText }}
+          <span class="btn-text">{{ statusText }}</span>
         </span>
       </div>
     </header>
@@ -630,7 +630,9 @@ onMounted(() => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .workflow-step {
@@ -638,6 +640,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .step-num {
@@ -655,6 +658,7 @@ onMounted(() => {
   width: 1px;
   height: 14px;
   background-color: #E0E0E0;
+  flex-shrink: 0;
 }
 
 .status-indicator {
@@ -664,6 +668,7 @@ onMounted(() => {
   font-size: 12px;
   color: #666;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .dot {
@@ -678,6 +683,33 @@ onMounted(() => {
 .status-indicator.error .dot { background: #F44336; }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
+
+/* 响应式设计 - 窄屏时隐藏按钮文字，只显示图标 */
+@media (max-width: 1400px) {
+  .header-right {
+    gap: 8px;
+  }
+  
+  .header-right .btn-text {
+    display: none;
+  }
+  
+  .nav-btn, .export-btn {
+    padding: 8px;
+    min-width: 36px;
+    justify-content: center;
+  }
+  
+  .hide-narrow {
+    display: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .workflow-step .step-name {
+    display: none;
+  }
+}
 
 /* Content */
 .content-area {
