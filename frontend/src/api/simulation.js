@@ -159,7 +159,7 @@ export const listSimulations = (params) => {
  * @param {string} simulationId
  */
 export const exportSimulationData = (simulationId) => {
-  return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'}/api/simulation/${simulationId}/export`
+  return `${import.meta.env.VITE_API_BASE_URL || ''}/api/simulation/${simulationId}/export`
 }
 
 /**
