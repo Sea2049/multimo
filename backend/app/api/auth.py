@@ -363,21 +363,23 @@ def init_auth(app) -> None:
         logger.info("API Key 认证未启用")
         return
 
-    manager = get_api_key_manager()
+    # 在应用上下文中初始化 API Key Manager
+    with app.app_context():
+        manager = get_api_key_manager()
 
-    if config.API_KEYS:
-        for key_config in config.API_KEYS:
-            key_id = key_config.get("id", f"key_{len(manager._api_keys) + 1}")
-            raw_key = key_config.get("key")
-            if raw_key:
-                hashed = hash_api_key(raw_key)
-                manager.add_api_key(
-                    key_id=key_id,
-                    hashed_key=hashed,
-                    name=key_config.get("name", ""),
-                    permissions=key_config.get("permissions", []),
-                    rate_limit=key_config.get("rate_limit", "100/hour")
-                )
-                logger.info(f"加载 API Key: key_id={key_id}, name={key_config.get('name', '')}")
+        if config.API_KEYS:
+            for key_config in config.API_KEYS:
+                key_id = key_config.get("id", f"key_{len(manager._api_keys) + 1}")
+                raw_key = key_config.get("key")
+                if raw_key:
+                    hashed = hash_api_key(raw_key)
+                    manager.add_api_key(
+                        key_id=key_id,
+                        hashed_key=hashed,
+                        name=key_config.get("name", ""),
+                        permissions=key_config.get("permissions", []),
+                        rate_limit=key_config.get("rate_limit", "100/hour")
+                    )
+                    logger.info(f"加载 API Key: key_id={key_id}, name={key_config.get('name', '')}")
 
-    logger.info(f"认证模块初始化完成，共加载 {len(manager._api_keys)} 个 API Key")
+        logger.info(f"认证模块初始化完成，共加载 {len(manager._api_keys)} 个 API Key")
