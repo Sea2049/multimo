@@ -26,7 +26,27 @@ multimo/
 ├── REPORT_MODULE_TEST_REPORT.md  # 报告模块测试报告
 ├── TEST_REPORT.md          # 项目全面测试与回溯报告
 ├── TESTING.md              # 测试文档
+├── CHANGELOG.md            # 变更日志（v2.70 新增）
 ├── replication_log.md      # 项目复制日志
+├── deploy/                 # 部署配置目录
+│   ├── aliyun/             # 阿里云部署配置
+│   │   ├── healthcheck.sh  # 健康检查脚本
+│   │   ├── init-ecs.sh     # ECS 初始化脚本
+│   │   ├── README.md       # 阿里云部署文档
+│   │   ├── security-group.md  # 安全组配置
+│   │   └── server-deploy.sh   # 服务器部署脚本
+│   ├── cloudflare/         # Cloudflare 配置
+│   │   ├── certs/          # SSL 证书目录
+│   │   └── README.md       # Cloudflare 配置文档
+│   ├── logging/            # 日志配置
+│   │   └── docker-compose.logging.yml
+│   ├── monitoring/         # 监控配置
+│   │   └── README.md
+│   ├── nginx/              # Nginx 配置
+│   │   ├── Dockerfile      # Nginx Docker 镜像
+│   │   └── nginx.conf      # Nginx 配置文件
+│   └── scripts/            # 部署脚本（v2.70 新增）
+│       └── disk-cleanup.sh # 磁盘清理脚本
 ├── static/                 # 静态资源目录
 │   └── image/              # 图片资源
 │       ├── Screenshot/     # 系统运行截图
@@ -1270,6 +1290,37 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v2.70 (2026-02-02)
+
+**版本固化：**
+- 🎉 正式发布 v2.70 版本
+- 🚀 生产部署优化与稳定性增强
+- 🎨 UI 体验优化
+- ⚡ 性能大幅提升
+
+**代码目录新增：**
+- 新增部署脚本目录 `deploy/scripts/`
+  - `disk-cleanup.sh` - 磁盘清理脚本
+
+**代码目录更新：**
+- `frontend/src/views/InteractionView.vue` - 新增导出按钮
+- `backend/app/api/v1/report.py` - 使用相对 API 路径
+- `backend/app/modules/report/generator.py` - 并行化和缓存优化
+- `backend/app/services/report_agent.py` - ReACT 格式解析修复
+
+**部署改进：**
+- ✅ Docker 健康检查端点兼容性
+- ✅ PyTorch CPU 版本优化，镜像体积减少 10GB+
+- ✅ Docker 数据路径统一
+- ✅ 数据库迁移到 uploads 目录
+- ✅ Nginx 配置优化
+
+**文档更新：**
+- 📚 更新 FRAMEWORK.md 框架架构文档
+- 📚 更新 CODE_DIRECTORY.md 代码目录文档
+- 📚 更新 README.md 项目说明文档
+- 📚 新增 CHANGELOG.md 变更日志文件
 
 ### v1.61 (2026-02-01)
 

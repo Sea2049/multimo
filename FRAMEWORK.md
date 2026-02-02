@@ -636,6 +636,44 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
+### v2.70 (2026-02-02)
+
+**版本固化：**
+- 🎉 正式发布 v2.70 版本
+- 🚀 生产部署优化与稳定性增强
+- 🎨 UI 体验优化
+- ⚡ 性能大幅提升
+
+**部署改进：**
+- ✅ 新增磁盘清理脚本 (`deploy/scripts/disk-cleanup.sh`)
+- ✅ Docker 健康检查端点兼容性 (`/api/health`)
+- ✅ PyTorch CPU 版本优化，镜像体积减少 10GB+
+- ✅ Docker 数据路径统一，简化卷挂载
+- ✅ 数据库迁移到 uploads 目录
+- ✅ Nginx client_max_body_size 增加到 100M
+- ✅ 移除前端 nginx 的后端代理配置
+- ✅ 修复 init_auth 的 app context 问题
+
+**UI 改进：**
+- 🎨 InteractionView 新增导出按钮
+- 🎨 报告导出响应式头部按钮优化
+- 🐛 移除重复的 addLog 声明
+
+**性能优化：**
+- ⚡ 报告生成速度优化（并行化处理）
+- ⚡ 报告生成缓存机制
+- ⚡ ReACT 格式工具调用解析修复
+
+**API 改进：**
+- 🔧 报告导出使用相对 API 路径
+- 🔧 生产环境使用相对 API 路径
+
+**文档更新：**
+- 📚 更新 FRAMEWORK.md 框架架构文档
+- 📚 更新 CODE_DIRECTORY.md 代码目录文档
+- 📚 更新 README.md 项目说明文档
+- 📚 新增 CHANGELOG.md 变更日志文件
+
 ### v1.61 (2026-02-01)
 
 **版本固化：**

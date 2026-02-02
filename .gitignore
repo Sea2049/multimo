@@ -63,3 +63,13 @@ data/staging/
 # Cloudflare Origin Certificate (敏感文件)
 deploy/cloudflare/certs/*.pem
 deploy/cloudflare/certs/*.key
+
+# Loki Mode 工作流目录
+# 整个目录默认忽略（私有工作流）
+.loki/
+
+# 如果需要团队共享 Agent 提示词，可以改为：
+# .loki/state/
+# .loki/queue/
+# .loki/memory/mistakes.md
+# .loki/signals/
