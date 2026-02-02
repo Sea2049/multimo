@@ -112,6 +112,12 @@ class AppConfig(BaseSettings):
     API_KEYS: list = []  # API Key 配置列表 [{"id": "key1", "key": "xxx", "name": "Name", "permissions": []}]
     API_KEY_HEADER: str = "X-API-Key"  # API Key 请求头名称
     
+    # JWT 用户认证配置
+    JWT_SECRET_KEY: str = ""  # JWT 签名密钥（生产环境必须配置）
+    JWT_EXPIRATION_HOURS: int = 168  # Token 有效期（小时），默认 7 天
+    JWT_ALGORITHM: str = "HS256"  # JWT 签名算法
+    INVITATION_CODE_LENGTH: int = 8  # 邀请码长度
+    
     # 请求签名配置（用于高安全场景）
     SIGNATURE_ENABLED: bool = False  # 是否启用请求签名验证
     SIGNATURE_SECRET: str = "your-signature-secret-key"  # 签名密钥
@@ -164,6 +170,18 @@ class AppConfig(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY must be set in production environment. "
                     "Please set SECRET_KEY in your .env file or environment variables."
+                )
+        
+        # JWT_SECRET_KEY 安全处理（与 SECRET_KEY 相同逻辑）
+        if not self.JWT_SECRET_KEY:
+            if self.DEBUG:
+                # 开发环境自动生成随机密钥
+                self.JWT_SECRET_KEY = secrets.token_hex(32)
+            else:
+                # 生产环境必须配置 JWT_SECRET_KEY
+                raise ValueError(
+                    "JWT_SECRET_KEY must be set in production environment. "
+                    "Please set JWT_SECRET_KEY in your .env file or environment variables."
                 )
         
         self._create_directories()

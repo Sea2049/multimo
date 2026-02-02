@@ -109,6 +109,58 @@ class SQLiteStorage(DatabaseStorage):
             ON tasks(created_at)
         """)
         
+        # ============= 用户认证相关表 =============
+        
+        # 用户表
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_users_email 
+            ON users(email)
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_users_username 
+            ON users(username)
+        """)
+        
+        # 邀请码表
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS invitation_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                created_by INTEGER,
+                max_uses INTEGER DEFAULT 1,
+                used_count INTEGER DEFAULT 0,
+                expires_at TIMESTAMP,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                note TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_invitation_codes_code 
+            ON invitation_codes(code)
+        """)
+        
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_invitation_codes_active 
+            ON invitation_codes(is_active)
+        """)
+        
         conn.commit()
     
     def store(self, key: str, value: Any) -> bool:
@@ -468,3 +520,276 @@ class SQLiteStorage(DatabaseStorage):
         except Exception as e:
             print(f"Error cleaning up tasks in database: {e}")
             return 0
+    
+    # ============= 用户管理方法 =============
+    
+    def create_user(self, username: str, email: str, password_hash: str, 
+                   role: str = "user") -> Optional[int]:
+        """创建用户
+        
+        Args:
+            username: 用户名
+            email: 邮箱
+            password_hash: 密码哈希
+            role: 角色（admin/user）
+            
+        Returns:
+            用户 ID，失败返回 None
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    INSERT INTO users (username, email, password_hash, role)
+                    VALUES (?, ?, ?, ?)
+                """, (username, email, password_hash, role))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            print(f"Error creating user: {e}")
+            return None
+    
+    def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """根据 ID 获取用户"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM users WHERE id = ?",
+                    (user_id,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"Error getting user by id: {e}")
+            return None
+    
+    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """根据邮箱获取用户"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM users WHERE email = ?",
+                    (email,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"Error getting user by email: {e}")
+            return None
+    
+    def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """根据用户名获取用户"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM users WHERE username = ?",
+                    (username,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"Error getting user by username: {e}")
+            return None
+    
+    def update_user(self, user_id: int, **kwargs) -> bool:
+        """更新用户信息"""
+        allowed_fields = {'username', 'email', 'password_hash', 'role', 'is_active'}
+        try:
+            if not kwargs:
+                return True
+            
+            for key in kwargs.keys():
+                if key not in allowed_fields:
+                    raise ValueError(f"Invalid field: {key}")
+            
+            with self.get_connection() as conn:
+                set_clauses = [f"{key} = ?" for key in kwargs.keys()]
+                values = list(kwargs.values())
+                values.append(user_id)
+                
+                conn.execute(f"""
+                    UPDATE users 
+                    SET {', '.join(set_clauses)}, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, values)
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating user: {e}")
+            return False
+    
+    def count_users(self) -> int:
+        """统计用户数量"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute("SELECT COUNT(*) as count FROM users")
+                return cursor.fetchone()["count"]
+        except Exception as e:
+            print(f"Error counting users: {e}")
+            return 0
+    
+    # ============= 邀请码管理方法 =============
+    
+    def create_invitation_code(self, code: str, created_by: Optional[int] = None,
+                               max_uses: int = 1, expires_at: Optional[str] = None,
+                               note: Optional[str] = None) -> Optional[int]:
+        """创建邀请码
+        
+        Args:
+            code: 邀请码
+            created_by: 创建者用户 ID
+            max_uses: 最大使用次数
+            expires_at: 过期时间
+            note: 备注
+            
+        Returns:
+            邀请码 ID，失败返回 None
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    INSERT INTO invitation_codes 
+                    (code, created_by, max_uses, expires_at, note)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (code, created_by, max_uses, expires_at, note))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            print(f"Error creating invitation code: {e}")
+            return None
+    
+    def get_invitation_code(self, code: str) -> Optional[Dict[str, Any]]:
+        """根据邀请码获取记录"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM invitation_codes WHERE code = ?",
+                    (code,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"Error getting invitation code: {e}")
+            return None
+    
+    def get_invitation_code_by_id(self, code_id: int) -> Optional[Dict[str, Any]]:
+        """根据 ID 获取邀请码"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM invitation_codes WHERE id = ?",
+                    (code_id,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"Error getting invitation code by id: {e}")
+            return None
+    
+    def list_invitation_codes(self, include_inactive: bool = False,
+                              limit: int = 100) -> List[Dict[str, Any]]:
+        """列出邀请码"""
+        try:
+            with self.get_connection() as conn:
+                if include_inactive:
+                    cursor = conn.execute("""
+                        SELECT * FROM invitation_codes
+                        ORDER BY created_at DESC
+                        LIMIT ?
+                    """, (limit,))
+                else:
+                    cursor = conn.execute("""
+                        SELECT * FROM invitation_codes
+                        WHERE is_active = 1
+                        ORDER BY created_at DESC
+                        LIMIT ?
+                    """, (limit,))
+                
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error listing invitation codes: {e}")
+            return []
+    
+    def increment_invitation_code_usage(self, code: str) -> bool:
+        """增加邀请码使用次数"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute("""
+                    UPDATE invitation_codes 
+                    SET used_count = used_count + 1
+                    WHERE code = ?
+                """, (code,))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error incrementing invitation code usage: {e}")
+            return False
+    
+    def update_invitation_code(self, code_id: int, **kwargs) -> bool:
+        """更新邀请码"""
+        allowed_fields = {'max_uses', 'expires_at', 'is_active', 'note'}
+        try:
+            if not kwargs:
+                return True
+            
+            for key in kwargs.keys():
+                if key not in allowed_fields:
+                    raise ValueError(f"Invalid field: {key}")
+            
+            with self.get_connection() as conn:
+                set_clauses = [f"{key} = ?" for key in kwargs.keys()]
+                values = list(kwargs.values())
+                values.append(code_id)
+                
+                conn.execute(f"""
+                    UPDATE invitation_codes 
+                    SET {', '.join(set_clauses)}
+                    WHERE id = ?
+                """, values)
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating invitation code: {e}")
+            return False
+    
+    def delete_invitation_code(self, code_id: int) -> bool:
+        """删除邀请码"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute(
+                    "DELETE FROM invitation_codes WHERE id = ?",
+                    (code_id,)
+                )
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error deleting invitation code: {e}")
+            return False
+    
+    def is_invitation_code_valid(self, code: str) -> tuple[bool, str]:
+        """检查邀请码是否有效
+        
+        Returns:
+            (是否有效, 错误信息)
+        """
+        try:
+            invitation = self.get_invitation_code(code)
+            
+            if not invitation:
+                return False, "邀请码不存在"
+            
+            if not invitation["is_active"]:
+                return False, "邀请码已禁用"
+            
+            if invitation["used_count"] >= invitation["max_uses"]:
+                return False, "邀请码已达到使用次数上限"
+            
+            if invitation["expires_at"]:
+                from datetime import datetime
+                expires_at = datetime.fromisoformat(invitation["expires_at"].replace("Z", "+00:00"))
+                if datetime.now(expires_at.tzinfo) > expires_at:
+                    return False, "邀请码已过期"
+            
+            return True, ""
+        except Exception as e:
+            print(f"Error checking invitation code validity: {e}")
+            return False, "验证邀请码时发生错误"

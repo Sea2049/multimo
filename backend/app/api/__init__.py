@@ -113,6 +113,9 @@ def register_routes():
     # v1 旧版路由
     from app.api.v1 import graph, simulation, report, health, interaction
     
+    # 用户认证和邀请码路由
+    from app.api.v1 import user_auth, invitation
+    
     # 新版完整路由
     from app.api import graph as graph_module
     from app.api import simulation as simulation_module

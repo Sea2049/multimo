@@ -4,6 +4,9 @@
     <nav class="navbar">
       <div class="nav-brand">MULTIMO</div>
       <div class="nav-links">
+        <router-link v-if="isAdmin" to="/admin" class="nav-link admin-link">管理后台</router-link>
+        <span class="user-info">{{ currentUser?.username }}</span>
+        <button class="logout-btn" @click="handleLogout">登出</button>
       </div>
     </nav>
 
@@ -302,8 +305,15 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
+import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
+const { currentUser, isAdmin, logout } = useAuth()
+
+// 处理登出
+const handleLogout = () => {
+  logout()
+}
 
 // 表单数据
 const formData = ref({
@@ -468,6 +478,45 @@ const startSimulation = () => {
 .nav-links {
   display: flex;
   align-items: center;
+  gap: 15px;
+}
+
+.nav-link {
+  color: var(--white);
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  border-color: var(--white);
+}
+
+.admin-link {
+  color: #FFD700;
+}
+
+.user-info {
+  font-size: 0.85rem;
+  color: #ccc;
+  font-family: var(--font-mono);
+}
+
+.logout-btn {
+  padding: 6px 15px;
+  background: transparent;
+  border: 1px solid #666;
+  color: var(--white);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-mono);
+}
+
+.logout-btn:hover {
+  border-color: var(--white);
 }
 
 /* 主要内容区 */

@@ -139,6 +139,7 @@ def init_rate_limiting(app: Flask, config) -> None:
         logger.info(f"使用 Redis 存储限流配置: {limiter_config['redis_url']}")
     
     limiter = Limiter(**kwargs)
+    limiter.init_app(app)
     
     app.limiter = limiter
     

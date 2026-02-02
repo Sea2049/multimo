@@ -17,7 +17,7 @@ API 请求验证装饰器模块
 
 from functools import wraps
 from typing import Dict, List, Callable, Any, Optional
-from flask import request, jsonify
+from flask import request, jsonify, g
 
 from . import get_error_response, ErrorCode
 from ..utils.validators import (
@@ -30,6 +30,158 @@ from ..utils.validators import (
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+# ============== JWT 用户认证装饰器 ==============
+
+def require_user_auth(func: Callable) -> Callable:
+    """
+    JWT 用户认证装饰器
+    
+    验证 Authorization: Bearer <token> 头，将用户信息存入 g.current_user
+    
+    Example:
+        @api_v1_bp.route('/me')
+        @require_user_auth
+        def get_current_user():
+            user = g.current_user
+            return jsonify({"user": user})
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        import jwt
+        from ..config_new import get_config
+        from ..storage.database import SQLiteStorage
+        
+        config = get_config()
+        
+        # 获取 Authorization 头
+        auth_header = request.headers.get("Authorization")
+        
+        if not auth_header:
+            logger.warning(f"缺少 Authorization 头: path={request.path}")
+            return jsonify(get_error_response(
+                error="未提供认证信息",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        
+        # 解析 Bearer Token
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            logger.warning(f"无效的 Authorization 格式: path={request.path}")
+            return jsonify(get_error_response(
+                error="无效的认证格式，请使用 Bearer Token",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        
+        token = parts[1]
+        
+        # 验证 JWT Token
+        try:
+            payload = jwt.decode(
+                token,
+                config.JWT_SECRET_KEY,
+                algorithms=[config.JWT_ALGORITHM]
+            )
+        except jwt.ExpiredSignatureError:
+            logger.warning(f"Token 已过期: path={request.path}")
+            return jsonify(get_error_response(
+                error="登录已过期，请重新登录",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"无效的 Token: path={request.path}, error={e}")
+            return jsonify(get_error_response(
+                error="无效的认证令牌",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        
+        # 获取用户信息
+        user_id = payload.get("user_id")
+        if not user_id:
+            logger.warning(f"Token 中缺少 user_id: path={request.path}")
+            return jsonify(get_error_response(
+                error="无效的认证令牌",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        
+        # 从数据库获取用户
+        storage = SQLiteStorage(config.TASKS_DATABASE_PATH)
+        user = storage.get_user_by_id(user_id)
+        
+        if not user:
+            logger.warning(f"用户不存在: user_id={user_id}, path={request.path}")
+            return jsonify(get_error_response(
+                error="用户不存在",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        
+        if not user.get("is_active"):
+            logger.warning(f"用户已禁用: user_id={user_id}, path={request.path}")
+            return jsonify(get_error_response(
+                error="用户账户已被禁用",
+                status_code=401,
+                error_code=ErrorCode.UNAUTHORIZED
+            )), 401
+        
+        # 将用户信息存入 g
+        g.current_user = {
+            "id": user["id"],
+            "username": user["username"],
+            "email": user["email"],
+            "role": user["role"],
+            "is_active": user["is_active"]
+        }
+        
+        logger.debug(f"用户认证成功: user_id={user_id}, username={user['username']}")
+        
+        return func(*args, **kwargs)
+    
+    return wrapper
+
+
+def require_admin(func: Callable) -> Callable:
+    """
+    管理员权限装饰器
+    
+    继承 @require_user_auth，并额外检查 role == 'admin'
+    
+    Example:
+        @api_v1_bp.route('/admin/users')
+        @require_admin
+        def list_users():
+            # 只有管理员可以访问
+            pass
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # 先执行用户认证
+        auth_wrapper = require_user_auth(lambda *a, **k: None)
+        result = auth_wrapper(*args, **kwargs)
+        
+        # 如果认证失败，返回错误响应
+        if result is not None:
+            return result
+        
+        # 检查管理员权限
+        user = g.current_user
+        if user.get("role") != "admin":
+            logger.warning(f"非管理员访问管理接口: user_id={user['id']}, path={request.path}")
+            return jsonify(get_error_response(
+                error="需要管理员权限",
+                status_code=403,
+                error_code=ErrorCode.FORBIDDEN
+            )), 403
+        
+        return func(*args, **kwargs)
+    
+    return wrapper
 
 
 def validate_request(

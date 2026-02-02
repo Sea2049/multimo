@@ -8,8 +8,16 @@ const service = axios.create({
   }
 })
 
+// Token 存储的 key
+const TOKEN_KEY = 'multimo_token'
+
 service.interceptors.request.use(
   config => {
+    // 添加 Authorization 头
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
     return config
   },
   error => {
@@ -156,6 +164,17 @@ service.interceptors.response.use(
   },
   error => {
     console.error('Response error:', error)
+
+    // 处理 401 错误：清除 token 并跳转登录页
+    if (error.response?.status === 401) {
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem('multimo_user')
+      
+      // 避免在登录页重复跳转
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
 
     const formattedError = formatErrorMessage(error)
 
