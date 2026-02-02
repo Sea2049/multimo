@@ -16,13 +16,10 @@ services:
     environment:
       - PORT=5002
     volumes:
-      # 持久化上传文件 (与 production 隔离)
+      # 持久化上传文件和数据库 (tasks.db, storage.db 都在 uploads 目录)
       - ./data/staging/uploads:/app/uploads
       # 持久化日志
       - ./data/staging/logs:/app/logs
-      # 持久化数据库 (SQLite)
-      - ./data/staging/tasks.db:/app/tasks.db
-      - ./data/staging/storage.db:/app/storage.db
     expose:
       - "5002"
     networks:

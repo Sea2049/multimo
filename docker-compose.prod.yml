@@ -41,13 +41,10 @@ services:
     environment:
       - PORT=5001
     volumes:
-      # 持久化上传文件
+      # 持久化上传文件和数据库 (tasks.db, storage.db 都在 uploads 目录)
       - ./data/prod/uploads:/app/uploads
       # 持久化日志
       - ./data/prod/logs:/app/logs
-      # 持久化数据库 (SQLite)
-      - ./data/prod/tasks.db:/app/tasks.db
-      - ./data/prod/storage.db:/app/storage.db
     expose:
       - "5001"
     networks:
