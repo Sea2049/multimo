@@ -13,10 +13,12 @@ import os
 import json
 import time
 import re
-from typing import Dict, Any, List, Optional, Callable
+import threading
+from typing import Dict, Any, List, Optional, Callable, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..config_new import get_config
 from ..utils.llm_client import LLMClient
@@ -38,6 +40,8 @@ class ReportLogger:
     
     在报告文件夹中生成 agent_log.jsonl 文件，记录每一步详细动作。
     每行是一个完整的 JSON 对象，包含时间戳、动作类型、详细内容等。
+    
+    线程安全：支持并行生成章节时的并发写入。
     """
     
     def __init__(self, report_id: str):
@@ -53,6 +57,8 @@ class ReportLogger:
             config.UPLOAD_FOLDER, 'reports', report_id, 'agent_log.jsonl'
         )
         self.start_time = datetime.now()
+        # 线程锁，确保并发写入时的线程安全
+        self._write_lock = threading.Lock()
         self._ensure_log_file()
     
     def _ensure_log_file(self):
@@ -93,10 +99,11 @@ class ReportLogger:
             "details": details
         }
         
-        # 使用上下文管理器确保文件正确关闭，并添加错误处理
+        # 使用线程锁和上下文管理器确保并发安全和文件正确关闭
         try:
-            with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            with self._write_lock:
+                with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
         except IOError as e:
             logger.error(f"Failed to write agent log to {self.log_file_path}: {e}")
     
@@ -1181,6 +1188,19 @@ class ReportAgent:
         # 报告上下文，用于InsightForge的子问题生成
         report_context = f"章节标题: {section.title}\n模拟需求: {self.simulation_requirement}"
         
+        def should_early_terminate(response: str, tool_count: int, iteration_num: int) -> bool:
+            """智能终止条件判断"""
+            # 条件1: 有 Final Answer 且工具调用充足
+            if "Final Answer:" in response and tool_count >= min_tool_calls:
+                return True
+            # 条件2: 工具调用已达上限（无需继续迭代）
+            if tool_count >= self.MAX_TOOL_CALLS_PER_SECTION:
+                return True
+            # 条件3: 已经迭代3轮以上且有内容生成迹象
+            if iteration_num >= 3 and tool_count >= min_tool_calls and len(response) > 1000:
+                return True
+            return False
+        
         for iteration in range(max_iterations):
             if progress_callback:
                 progress_callback(
@@ -1279,13 +1299,16 @@ class ReportAgent:
                     })
                 continue
             
-            # 执行工具调用
-            tool_results = []
-            for call in tool_calls:
-                if tool_calls_count >= self.MAX_TOOL_CALLS_PER_SECTION:
-                    break
-                
-                # 记录工具调用日志
+            # 执行工具调用（并行化以提升速度）
+            # 限制本轮可执行的工具数量
+            remaining_calls = self.MAX_TOOL_CALLS_PER_SECTION - tool_calls_count
+            calls_to_execute = tool_calls[:remaining_calls] if remaining_calls > 0 else []
+            
+            if not calls_to_execute:
+                continue
+            
+            # 记录所有工具调用日志
+            for call in calls_to_execute:
                 if self.report_logger:
                     self.report_logger.log_tool_call(
                         section_title=section.title,
@@ -1294,33 +1317,71 @@ class ReportAgent:
                         parameters=call.get("parameters", {}),
                         iteration=iteration + 1
                     )
-                
-                result = self._execute_tool(
-                    call["name"], 
-                    call.get("parameters", {}),
-                    report_context=report_context
-                )
-                
-                # 记录工具结果日志
+            
+            # 并行执行工具调用
+            def execute_single_tool(call: Dict) -> Tuple[str, str]:
+                """执行单个工具调用"""
+                try:
+                    result = self._execute_tool(
+                        call["name"], 
+                        call.get("parameters", {}),
+                        report_context=report_context
+                    )
+                    return (call["name"], result)
+                except Exception as e:
+                    logger.error(f"工具调用失败: {call['name']}, 错误: {e}")
+                    return (call["name"], f"[调用失败: {str(e)}]")
+            
+            tool_results = []
+            if len(calls_to_execute) == 1:
+                # 单个工具调用，直接执行
+                name, result = execute_single_tool(calls_to_execute[0])
+                tool_results.append((name, result))
+            else:
+                # 多个工具调用，并行执行
+                with ThreadPoolExecutor(max_workers=min(4, len(calls_to_execute))) as executor:
+                    futures = [executor.submit(execute_single_tool, call) for call in calls_to_execute]
+                    tool_results = [f.result() for f in futures]
+            
+            # 记录所有工具结果日志
+            formatted_results = []
+            for name, result in tool_results:
                 if self.report_logger:
                     self.report_logger.log_tool_result(
                         section_title=section.title,
                         section_index=section_index,
-                        tool_name=call["name"],
+                        tool_name=name,
                         result=result,
                         iteration=iteration + 1
                     )
-                
-                tool_results.append(f"═══ 工具 {call['name']} 返回 ═══\n{result}")
+                formatted_results.append(f"═══ 工具 {name} 返回 ═══\n{result}")
                 tool_calls_count += 1
             
             # 将结果添加到消息
             messages.append({"role": "assistant", "content": response})
+            
+            # 智能终止：如果工具调用达到上限，直接要求生成 Final Answer
+            if tool_calls_count >= self.MAX_TOOL_CALLS_PER_SECTION:
+                messages.append({
+                    "role": "user",
+                    "content": f"""Observation（检索结果）:
+
+{"".join(formatted_results)}
+
+═══════════════════════════════════════════════════════════════
+【工具调用已达上限】
+已调用工具 {tool_calls_count}/{self.MAX_TOOL_CALLS_PER_SECTION} 次，信息已经充分。
+请直接输出 Final Answer: 并撰写章节内容（必须引用上述原文）。
+═══════════════════════════════════════════════════════════════"""
+                })
+                # 继续下一轮迭代以获取 Final Answer
+                continue
+            
             messages.append({
                 "role": "user",
                 "content": f"""Observation（检索结果）:
 
-{"".join(tool_results)}
+{"".join(formatted_results)}
 
 ═══════════════════════════════════════════════════════════════
 【下一步行动】
@@ -1502,39 +1563,80 @@ class ReportAgent:
                 section.content = section_content
                 generated_sections.append(f"## {section.title}\n\n{section_content}")
                 
-                # 如果有子章节，也一并生成并合并到主章节中
+                # 如果有子章节，并行生成以提升速度
                 subsection_contents = []
-                for j, subsection in enumerate(section.subsections):
-                    subsection_num = j + 1
-                    
+                if section.subsections:
+                    # 更新进度：开始生成子章节
                     if progress_callback:
                         progress_callback(
                             "generating",
-                            base_progress + int(((j + 1) / max(len(section.subsections), 1)) * 5),
-                            f"正在生成子章节: {subsection.title}"
+                            base_progress + 2,
+                            f"正在并行生成 {len(section.subsections)} 个子章节..."
                         )
                     
                     ReportManager.update_progress(
                         report_id, "generating",
-                        base_progress + int(((j + 1) / max(len(section.subsections), 1)) * 5),
-                        f"正在生成子章节: {subsection.title}",
-                        current_section=subsection.title,
+                        base_progress + 2,
+                        f"正在并行生成 {len(section.subsections)} 个子章节...",
+                        current_section=f"{section.title} (子章节)",
                         completed_sections=completed_section_titles
                     )
                     
-                    subsection_content = self._generate_section_react(
-                        section=subsection,
-                        outline=outline,
-                        previous_sections=generated_sections,
-                        progress_callback=None,
-                        section_index=section_num * 100 + subsection_num  # 子章节索引
-                    )
-                    subsection.content = subsection_content
-                    generated_sections.append(f"### {subsection.title}\n\n{subsection_content}")
-                    subsection_contents.append((subsection.title, subsection_content))
-                    completed_section_titles.append(f"  └─ {subsection.title}")
+                    # 并行生成子章节
+                    # 使用固定的 previous_sections 快照，避免并行时的竞争条件
+                    previous_sections_snapshot = list(generated_sections)
                     
-                    logger.info(f"子章节已生成: {subsection.title}")
+                    def generate_subsection(args: Tuple[int, Any]) -> Tuple[int, str, str]:
+                        """生成单个子章节的辅助函数"""
+                        j, subsection = args
+                        subsection_num = j + 1
+                        try:
+                            content = self._generate_section_react(
+                                section=subsection,
+                                outline=outline,
+                                previous_sections=previous_sections_snapshot,
+                                progress_callback=None,
+                                section_index=section_num * 100 + subsection_num
+                            )
+                            return (j, subsection.title, content)
+                        except Exception as e:
+                            logger.error(f"子章节生成失败: {subsection.title}, 错误: {e}")
+                            return (j, subsection.title, f"[生成失败: {str(e)}]")
+                    
+                    # 使用线程池并行生成，最多 3 个并行
+                    max_workers = min(3, len(section.subsections))
+                    subsection_results = [None] * len(section.subsections)
+                    
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = {
+                            executor.submit(generate_subsection, (j, sub)): j 
+                            for j, sub in enumerate(section.subsections)
+                        }
+                        
+                        completed_count = 0
+                        for future in as_completed(futures):
+                            j, title, content = future.result()
+                            subsection_results[j] = (title, content)
+                            completed_count += 1
+                            
+                            # 更新进度
+                            progress_pct = base_progress + int((completed_count / len(section.subsections)) * 5)
+                            logger.info(f"子章节已生成 ({completed_count}/{len(section.subsections)}): {title}")
+                            
+                            ReportManager.update_progress(
+                                report_id, "generating",
+                                progress_pct,
+                                f"子章节已完成 ({completed_count}/{len(section.subsections)}): {title}",
+                                current_section=title,
+                                completed_sections=completed_section_titles + [f"  └─ {title}"]
+                            )
+                    
+                    # 按顺序处理结果
+                    for j, (title, content) in enumerate(subsection_results):
+                        section.subsections[j].content = content
+                        generated_sections.append(f"### {title}\n\n{content}")
+                        subsection_contents.append((title, content))
+                        completed_section_titles.append(f"  └─ {title}")
                 
                 # 【关键】将主章节和所有子章节合并保存到一个文件
                 ReportManager.save_section_with_subsections(

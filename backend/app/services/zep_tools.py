@@ -398,6 +398,9 @@ class ZepToolsService:
     MAX_RETRIES = 3
     RETRY_DELAY = 2.0
     
+    # 缓存过期时间（秒）
+    CACHE_TTL = 300  # 5分钟
+    
     def __init__(self, api_key: Optional[str] = None, llm_client: Optional[LLMClient] = None):
         config = get_config()
         # Zep 需要专用的 API Key，优先使用 ZEP_API_KEY
@@ -422,7 +425,54 @@ class ZepToolsService:
         self.client = Zep(api_key=self.api_key)
         # LLM客户端用于InsightForge生成子问题
         self._llm_client = llm_client
-        logger.info(f"ZepToolsService 初始化完成，超时设置: {self.timeout}s")
+        
+        # 缓存机制：避免重复查询相同数据
+        self._cache: Dict[str, tuple] = {}  # key -> (data, timestamp)
+        self._cache_lock = None  # 延迟初始化线程锁
+        
+        logger.info(f"ZepToolsService 初始化完成，超时设置: {self.timeout}s，缓存TTL: {self.CACHE_TTL}s")
+    
+    def _get_cache_lock(self):
+        """延迟初始化线程锁"""
+        if self._cache_lock is None:
+            import threading
+            self._cache_lock = threading.Lock()
+        return self._cache_lock
+    
+    def _get_from_cache(self, cache_key: str) -> Optional[Any]:
+        """从缓存获取数据"""
+        if cache_key in self._cache:
+            data, timestamp = self._cache[cache_key]
+            if time.time() - timestamp < self.CACHE_TTL:
+                logger.debug(f"缓存命中: {cache_key}")
+                return data
+            else:
+                # 缓存过期，删除
+                del self._cache[cache_key]
+        return None
+    
+    def _set_cache(self, cache_key: str, data: Any):
+        """设置缓存数据"""
+        with self._get_cache_lock():
+            self._cache[cache_key] = (data, time.time())
+            logger.debug(f"缓存设置: {cache_key}")
+    
+    def clear_cache(self, graph_id: Optional[str] = None):
+        """清除缓存
+        
+        Args:
+            graph_id: 如果指定，只清除该图谱的缓存；否则清除全部
+        """
+        with self._get_cache_lock():
+            if graph_id:
+                keys_to_delete = [k for k in self._cache if graph_id in k]
+                for k in keys_to_delete:
+                    del self._cache[k]
+                logger.info(f"已清除图谱 {graph_id} 的 {len(keys_to_delete)} 个缓存项")
+            else:
+                count = len(self._cache)
+                self._cache.clear()
+                logger.info(f"已清除全部 {count} 个缓存项")
     
     @property
     def llm(self) -> LLMClient:
@@ -642,7 +692,7 @@ class ZepToolsService:
     
     def get_all_nodes(self, graph_id: str) -> List[NodeInfo]:
         """
-        获取图谱的所有节点
+        获取图谱的所有节点（带缓存）
         
         Args:
             graph_id: 图谱ID
@@ -650,6 +700,13 @@ class ZepToolsService:
         Returns:
             节点列表
         """
+        # 检查缓存
+        cache_key = f"nodes:{graph_id}"
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            logger.info(f"从缓存获取图谱 {graph_id} 的节点: {len(cached)} 个")
+            return cached
+        
         logger.info(f"获取图谱 {graph_id} 的所有节点...")
         
         nodes = self._call_with_retry(
@@ -667,12 +724,15 @@ class ZepToolsService:
                 attributes=node.attributes or {}
             ))
         
+        # 设置缓存
+        self._set_cache(cache_key, result)
+        
         logger.info(f"获取到 {len(result)} 个节点")
         return result
     
     def get_all_edges(self, graph_id: str, include_temporal: bool = True) -> List[EdgeInfo]:
         """
-        获取图谱的所有边（包含时间信息）
+        获取图谱的所有边（包含时间信息，带缓存）
         
         Args:
             graph_id: 图谱ID
@@ -681,6 +741,13 @@ class ZepToolsService:
         Returns:
             边列表（包含created_at, valid_at, invalid_at, expired_at）
         """
+        # 检查缓存
+        cache_key = f"edges:{graph_id}:{include_temporal}"
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            logger.info(f"从缓存获取图谱 {graph_id} 的边: {len(cached)} 条")
+            return cached
+        
         logger.info(f"获取图谱 {graph_id} 的所有边...")
         
         edges = self._call_with_retry(
@@ -706,6 +773,9 @@ class ZepToolsService:
                 edge_info.expired_at = getattr(edge, 'expired_at', None)
             
             result.append(edge_info)
+        
+        # 设置缓存
+        self._set_cache(cache_key, result)
         
         logger.info(f"获取到 {len(result)} 条边")
         return result
