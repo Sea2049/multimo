@@ -21,14 +21,31 @@
       </div>
 
       <div class="header-right">
+        <button v-if="simulationId" class="export-btn secondary" @click="handleExportReport" title="导出报告 Markdown">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span class="btn-text">导出报告</span>
+        </button>
+        <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据（含图谱）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span class="btn-text">导出全部</span>
+        </button>
+        <div class="step-divider"></div>
         <div class="workflow-step">
           <span class="step-num">Step 5/5</span>
-          <span class="step-name">深度互动</span>
+          <span class="step-name btn-text">深度互动</span>
         </div>
         <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
-          {{ statusText }}
+          <span class="btn-text">{{ statusText }}</span>
         </span>
       </div>
     </header>
@@ -67,7 +84,7 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step5Interaction from '../components/Step5Interaction.vue'
 import { getProject, getGraphData } from '../api/graph'
-import { getSimulation } from '../api/simulation'
+import { getSimulation, exportSimulationData } from '../api/simulation'
 import { getReport } from '../api/report'
 
 const route = useRoute()
@@ -135,6 +152,20 @@ const toggleMaximize = (target) => {
   } else {
     viewMode.value = target
   }
+}
+
+// --- Export Methods ---
+const handleExportReport = () => {
+  if (!simulationId.value) return
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
+  const url = `${baseUrl}/api/v1/report/${simulationId.value}/download?format=markdown`
+  window.open(url, '_blank')
+}
+
+const handleFullExport = () => {
+  if (!simulationId.value) return
+  const url = exportSimulationData(simulationId.value)
+  window.open(url, '_blank')
 }
 
 // --- Data Logic ---
@@ -281,7 +312,40 @@ onMounted(() => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #000;
+  background: #000;
+  color: #FFF;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.export-btn:hover {
+  background: #333;
+}
+
+.export-btn.secondary {
+  background: #FFF;
+  color: #000;
+  border-color: #DDD;
+}
+
+.export-btn.secondary:hover {
+  background: #F5F5F5;
+  border-color: #CCC;
 }
 
 .workflow-step {
@@ -289,6 +353,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .step-num {
@@ -306,6 +371,7 @@ onMounted(() => {
   width: 1px;
   height: 14px;
   background-color: #E0E0E0;
+  flex-shrink: 0;
 }
 
 .status-indicator {
@@ -315,6 +381,7 @@ onMounted(() => {
   font-size: 12px;
   color: #666;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .dot {
@@ -330,6 +397,29 @@ onMounted(() => {
 .status-indicator.error .dot { background: #F44336; }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
+
+/* 响应式设计 - 窄屏时隐藏按钮文字 */
+@media (max-width: 1400px) {
+  .header-right {
+    gap: 8px;
+  }
+  
+  .header-right .btn-text {
+    display: none;
+  }
+  
+  .export-btn {
+    padding: 8px;
+    min-width: 36px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 1200px) {
+  .workflow-step .step-name {
+    display: none;
+  }
+}
 
 /* Content */
 .content-area {
