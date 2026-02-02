@@ -92,6 +92,17 @@ def init_api(app):
     app.register_blueprint(simulation_bp)
     app.register_blueprint(graph_bp)
     app.register_blueprint(report_bp)
+    
+    # 添加根级健康检查路由（兼容 Docker healthcheck）
+    @app.route('/api/health', methods=['GET'])
+    def root_health_check():
+        """根级健康检查端点（兼容旧版配置）"""
+        return {
+            "success": True,
+            "status": "healthy",
+            "version": "2.0.0",
+            "message": "Multimo API is running"
+        }, 200
 
 
 def register_routes():
