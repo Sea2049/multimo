@@ -181,17 +181,16 @@ const checkAndStopRunningSimulation = async () => {
   
   try {
     // 先检查模拟环境是否存活
-    const envStatusRes = await getEnvStatus({ simulation_id: currentSimulationId.value })
+    // 注意：getEnvStatus 期望接收 simulationId 字符串，而非对象
+    const envStatusRes = await getEnvStatus(currentSimulationId.value)
     
     if (envStatusRes.success && envStatusRes.data?.env_alive) {
       addLog('检测到模拟环境正在运行，正在关闭...')
       
       // 尝试优雅关闭模拟环境
       try {
-        const closeRes = await closeSimulationEnv({ 
-          simulation_id: currentSimulationId.value,
-          timeout: 10  // 10秒超时
-        })
+        // 注意：closeSimulationEnv 期望接收 simulationId 字符串和可选的 timeout
+        const closeRes = await closeSimulationEnv(currentSimulationId.value, 10)
         
         if (closeRes.success) {
           addLog('✓ 模拟环境已关闭')

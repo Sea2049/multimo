@@ -160,15 +160,14 @@ const handleGoBack = async () => {
   
   try {
     // 先尝试优雅关闭模拟环境
-    const envStatusRes = await getEnvStatus({ simulation_id: currentSimulationId.value })
+    // 注意：getEnvStatus 期望接收 simulationId 字符串，而非对象
+    const envStatusRes = await getEnvStatus(currentSimulationId.value)
     
     if (envStatusRes.success && envStatusRes.data?.env_alive) {
       addLog('正在关闭模拟环境...')
       try {
-        await closeSimulationEnv({ 
-          simulation_id: currentSimulationId.value,
-          timeout: 10
-        })
+        // 注意：closeSimulationEnv 期望接收 simulationId 字符串和可选的 timeout
+        await closeSimulationEnv(currentSimulationId.value, 10)
         addLog('✓ 模拟环境已关闭')
       } catch (closeErr) {
         addLog(`关闭模拟环境失败，尝试强制停止...`)

@@ -127,12 +127,15 @@ export const getEnvStatus = (simulationId) => {
 
 /**
  * 关闭模拟环境
- * @param {string} simulationId
+ * @param {string} simulationId - 模拟ID
+ * @param {number} timeout - 可选，超时时间（秒），默认使用后端默认值
  */
-export const closeSimulationEnv = (simulationId) => {
-  return requestWithRetry(() => service.post('/api/simulation/close-env', {
-    simulation_id: simulationId
-  }), 3, 1000)
+export const closeSimulationEnv = (simulationId, timeout = null) => {
+  const payload = { simulation_id: simulationId }
+  if (timeout !== null) {
+    payload.timeout = timeout
+  }
+  return requestWithRetry(() => service.post('/api/simulation/close-env', payload), 3, 1000)
 }
 
 /**

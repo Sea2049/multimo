@@ -368,9 +368,31 @@
           </TransitionGroup>
 
           <!-- Empty State -->
-          <div v-if="agentLogs.length === 0 && !isComplete" class="workflow-empty">
+          <div v-if="agentLogs.length === 0 && !isComplete && !pollingError" class="workflow-empty">
             <div class="empty-pulse"></div>
             <span>Waiting for agent activity...</span>
+          </div>
+          
+          <!-- Polling Error State -->
+          <div v-if="pollingError" class="polling-error">
+            <div class="error-icon">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <div class="error-content">
+              <div class="error-title">连接中断</div>
+              <div class="error-message">{{ pollingError.message }}</div>
+            </div>
+            <button class="retry-btn" @click="retryPolling">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              重试
+            </button>
           </div>
         </div>
       </div>
@@ -430,6 +452,17 @@ const leftPanel = ref(null)
 const rightPanel = ref(null)
 const logContent = ref(null)
 const showRawResult = reactive({})
+
+// 错误处理状态
+const MAX_CONSECUTIVE_ERRORS = 5  // 最大连续错误次数
+const agentLogErrorCount = ref(0)
+const consoleLogErrorCount = ref(0)
+const pollingError = ref(null)  // { type: 'agent'|'console'|'both', message: string }
+
+// 添加日志方法（向父组件发送日志）
+const addLog = (msg) => {
+  emit('add-log', msg)
+}
 
 // Toggle functions
 const toggleRawResult = (timestamp, event) => {
@@ -1957,6 +1990,12 @@ const fetchAgentLog = async () => {
     const res = await getAgentLog(props.reportId, agentLogLine.value)
     
     if (res.success && res.data) {
+      // 成功时重置错误计数
+      agentLogErrorCount.value = 0
+      if (pollingError.value?.type === 'agent') {
+        pollingError.value = null
+      }
+      
       const newLogs = res.data.logs || []
       
       if (newLogs.length > 0) {
@@ -2004,6 +2043,15 @@ const fetchAgentLog = async () => {
             // 滚动逻辑统一在循环结束后的 nextTick 中处理
           }
           
+          // 检查报告生成失败
+          if (log.action === 'report_failed' || log.action === 'error') {
+            const errorMsg = log.details?.error || log.details?.message || '报告生成失败'
+            pollingError.value = { type: 'agent', message: errorMsg }
+            emit('update-status', 'error')
+            addLog(`报告生成失败: ${errorMsg}`)
+            stopPolling()
+          }
+          
           if (log.action === 'report_start') {
             startTime.value = new Date(log.timestamp)
           }
@@ -2022,9 +2070,28 @@ const fetchAgentLog = async () => {
           }
         })
       }
+    } else {
+      // API 返回失败
+      handleAgentLogError(res.error || '获取日志失败')
     }
   } catch (err) {
-    console.warn('Failed to fetch agent log:', err)
+    handleAgentLogError(err.message || '网络错误')
+  }
+}
+
+// 处理 Agent 日志获取错误
+const handleAgentLogError = (errorMsg) => {
+  agentLogErrorCount.value++
+  console.warn(`Failed to fetch agent log (${agentLogErrorCount.value}/${MAX_CONSECUTIVE_ERRORS}):`, errorMsg)
+  
+  if (agentLogErrorCount.value >= MAX_CONSECUTIVE_ERRORS) {
+    pollingError.value = { 
+      type: 'agent', 
+      message: `连续 ${MAX_CONSECUTIVE_ERRORS} 次获取日志失败，已暂停轮询。错误: ${errorMsg}` 
+    }
+    emit('update-status', 'error')
+    addLog(`轮询错误: ${errorMsg}，已暂停自动刷新`)
+    stopPolling()
   }
 }
 
@@ -2080,6 +2147,12 @@ const fetchConsoleLog = async () => {
     const res = await getConsoleLog(props.reportId, consoleLogLine.value)
     
     if (res.success && res.data) {
+      // 成功时重置错误计数
+      consoleLogErrorCount.value = 0
+      if (pollingError.value?.type === 'console') {
+        pollingError.value = null
+      }
+      
       const newLogs = res.data.logs || []
       
       if (newLogs.length > 0) {
@@ -2092,9 +2165,32 @@ const fetchConsoleLog = async () => {
           }
         })
       }
+    } else {
+      // API 返回失败
+      handleConsoleLogError(res.error || '获取控制台日志失败')
     }
   } catch (err) {
-    console.warn('Failed to fetch console log:', err)
+    handleConsoleLogError(err.message || '网络错误')
+  }
+}
+
+// 处理控制台日志获取错误
+const handleConsoleLogError = (errorMsg) => {
+  consoleLogErrorCount.value++
+  console.warn(`Failed to fetch console log (${consoleLogErrorCount.value}/${MAX_CONSECUTIVE_ERRORS}):`, errorMsg)
+  
+  // 控制台日志错误不太严重，只在连续多次失败时提示，但不停止整个轮询
+  if (consoleLogErrorCount.value >= MAX_CONSECUTIVE_ERRORS) {
+    // 只停止控制台日志轮询，不影响 agent 日志
+    if (consoleLogTimer) {
+      clearInterval(consoleLogTimer)
+      consoleLogTimer = null
+    }
+    // 如果 agent 日志也有错误，显示综合错误
+    if (pollingError.value?.type === 'agent') {
+      pollingError.value = { type: 'both', message: '日志获取连续失败，请检查网络连接' }
+    }
+    addLog(`控制台日志获取失败: ${errorMsg}`)
   }
 }
 
@@ -2136,6 +2232,22 @@ onUnmounted(() => {
   stopPolling()
 })
 
+// 手动重试轮询（用于用户点击重试按钮）
+const retryPolling = () => {
+  // 重置错误状态
+  agentLogErrorCount.value = 0
+  consoleLogErrorCount.value = 0
+  pollingError.value = null
+  emit('update-status', 'processing')
+  addLog('正在重新连接...')
+  
+  // 重新开始轮询
+  startPolling()
+}
+
+// 暴露给模板使用
+defineExpose({ retryPolling })
+
 watch(() => props.reportId, (newId) => {
   if (newId) {
     agentLogs.value = []
@@ -2150,6 +2262,10 @@ watch(() => props.reportId, (newId) => {
     collapsedSections.value = new Set()
     isComplete.value = false
     startTime.value = null
+    // 重置错误状态
+    agentLogErrorCount.value = 0
+    consoleLogErrorCount.value = 0
+    pollingError.value = null
     
     startPolling()
   }
@@ -3413,6 +3529,78 @@ watch(() => props.reportId, (newId) => {
 @keyframes pulse-ring {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.2); opacity: 0.5; }
+}
+
+/* Polling Error State */
+.polling-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  margin: 20px;
+}
+
+.polling-error .error-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FEE2E2;
+  border-radius: 50%;
+  color: #DC2626;
+  margin-bottom: 16px;
+}
+
+.polling-error .error-content {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.polling-error .error-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #991B1B;
+  margin-bottom: 4px;
+}
+
+.polling-error .error-message {
+  font-size: 12px;
+  color: #B91C1C;
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+.polling-error .retry-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #DC2626;
+  color: #FFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.polling-error .retry-btn:hover {
+  background: #B91C1C;
+  transform: translateY(-1px);
+}
+
+.polling-error .retry-btn svg {
+  transition: transform 0.3s;
+}
+
+.polling-error .retry-btn:hover svg {
+  transform: rotate(-180deg);
 }
 
 /* Timeline Transitions */

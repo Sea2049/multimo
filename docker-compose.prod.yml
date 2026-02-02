@@ -1,0 +1,89 @@
+# ===========================================
+# Multimo Production 环境
+# 域名: multimo.sea-ming.com
+# ===========================================
+
+services:
+  # Nginx 网关 (SSL 终端)
+  nginx:
+    build:
+      context: ./deploy/nginx
+      dockerfile: Dockerfile
+    container_name: multimo-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # 挂载 Cloudflare Origin Certificate
+      - ./deploy/cloudflare/certs/origin.pem:/etc/nginx/certs/origin.pem:ro
+      - ./deploy/cloudflare/certs/origin.key:/etc/nginx/certs/origin.key:ro
+    depends_on:
+      - frontend-prod
+      - backend-prod
+    networks:
+      - multimo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Production 后端
+  backend-prod:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: multimo-backend-prod
+    restart: always
+    env_file:
+      - .env.production
+    environment:
+      - PORT=5001
+    volumes:
+      # 持久化上传文件
+      - ./data/prod/uploads:/app/uploads
+      # 持久化日志
+      - ./data/prod/logs:/app/logs
+      # 持久化数据库 (SQLite)
+      - ./data/prod/tasks.db:/app/tasks.db
+      - ./data/prod/storage.db:/app/storage.db
+    expose:
+      - "5001"
+    networks:
+      - multimo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Production 前端
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: multimo-frontend-prod
+    restart: always
+    expose:
+      - "80"
+    depends_on:
+      - backend-prod
+    networks:
+      - multimo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  multimo-network:
+    driver: bridge
+    name: multimo-prod-network

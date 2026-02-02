@@ -1,0 +1,64 @@
+# ===========================================
+# Multimo Staging 环境
+# 域名: test.sea-ming.com
+# ===========================================
+
+services:
+  # Staging 后端
+  backend-staging:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: multimo-backend-staging
+    restart: always
+    env_file:
+      - .env.staging
+    environment:
+      - PORT=5002
+    volumes:
+      # 持久化上传文件 (与 production 隔离)
+      - ./data/staging/uploads:/app/uploads
+      # 持久化日志
+      - ./data/staging/logs:/app/logs
+      # 持久化数据库 (SQLite)
+      - ./data/staging/tasks.db:/app/tasks.db
+      - ./data/staging/storage.db:/app/storage.db
+    expose:
+      - "5002"
+    networks:
+      - multimo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # Staging 前端
+  frontend-staging:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: multimo-frontend-staging
+    restart: always
+    expose:
+      - "80"
+    depends_on:
+      - backend-staging
+    networks:
+      - multimo-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  multimo-network:
+    external: true
+    name: multimo-prod-network

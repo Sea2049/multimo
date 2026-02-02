@@ -55,5 +55,11 @@ backend/logs/
 # 上传文件
 backend/uploads/
 
-# Docker 数据
+# Docker 数据 (Production/Staging 持久化数据)
 data/
+data/prod/
+data/staging/
+
+# Cloudflare Origin Certificate (敏感文件)
+deploy/cloudflare/certs/*.pem
+deploy/cloudflare/certs/*.key

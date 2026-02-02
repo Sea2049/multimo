@@ -1,112 +1,389 @@
-# Multimo 阿里云部署指南
+# Multimo 阿里云 + Cloudflare 部署指南
 
-本指南将帮助您在阿里云 ECS 上部署 Multimo 系统，并配置 Cloudflare 进行加速和防护。
+本指南将帮助您在阿里云 ECS 上部署 Multimo 系统，并配置 Cloudflare 进行 CDN 加速和 SSL 防护。
 
 ## 架构概览
 
 ```
-用户 (浏览器) 
-  ↓
-Cloudflare (CDN, WAF, SSL)
-  ↓
-阿里云 ECS (Ubuntu/CentOS)
-  ↓
-Docker Compose
-  ├─ Nginx (Frontend Container) :80
-  └─ Python Flask (Backend Container) :5001
+用户浏览器
+    ↓ HTTPS
+Cloudflare (CDN + WAF + SSL)
+    ↓ HTTPS (Origin Certificate)
+阿里云 ECS (Ubuntu 22.04)
+    ↓
+┌─────────────────────────────────────────┐
+│  Nginx Container (:80, :443)            │
+│    ├─ multimo.sea-ming.com → Production │
+│    └─ test.sea-ming.com → Staging       │
+└─────────────────────────────────────────┘
+    ↓
+┌──────────────────┐  ┌──────────────────┐
+│  Production      │  │  Staging         │
+│  ├─ frontend:80  │  │  ├─ frontend:80  │
+│  └─ backend:5001 │  │  └─ backend:5002 │
+└──────────────────┘  └──────────────────┘
 ```
 
-## 1. 阿里云 ECS 准备
+## 快速开始
 
-### 1.1 购买与配置
-- **操作系统**: 推荐 Ubuntu 22.04 LTS 或 CentOS 7+
-- **规格**: 建议至少 2vCPU, 4GB RAM (运行 LLM 相关任务需要一定内存)
-- **安全组**: 
-  - 入方向: 开放 TCP 80, 443 (用于 Web 访问)
-  - 入方向: 开放 TCP 22 (用于 SSH)
+如果你已经准备好所有前置条件，可以直接执行：
 
-### 1.2 环境初始化
-登录服务器，安装 Docker 和 Docker Compose。
-
-**Ubuntu:**
 ```bash
-# 更新源
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
+# 1. SSH 到 ECS 服务器
+ssh root@your-ecs-ip
 
-# 安装 Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
+# 2. 运行初始化脚本
+curl -fsSL https://raw.githubusercontent.com/your-repo/multimo/main/deploy/aliyun/init-ecs.sh | sudo bash
 
-# 启动 Docker
-sudo systemctl enable docker
-sudo systemctl start docker
+# 3. 克隆代码
+cd /opt/multimo
+git clone https://github.com/your-repo/multimo.git .
+
+# 4. 复制证书和配置环境变量 (见下方详细说明)
+
+# 5. 部署
+./deploy.sh all
 ```
 
-## 2. 代码部署
+---
 
-### 2.1 获取代码
-将项目代码上传到服务器（可以使用 Git 或 SCP）。
+## 详细步骤
+
+### 第一步：阿里云 ECS 准备
+
+#### 1.1 购买 ECS 实例
+
+| 配置项 | 推荐值 |
+|--------|--------|
+| 地域 | 根据用户分布选择 |
+| 操作系统 | Ubuntu 22.04 LTS |
+| 规格 | >= 2 vCPU, 4GB RAM |
+| 系统盘 | >= 40GB SSD |
+| 带宽 | >= 5Mbps (按量计费) |
+
+#### 1.2 配置安全组
+
+参考 [security-group.md](security-group.md) 配置安全组规则。
+
+推荐配置：
+- TCP 22: 仅限管理员 IP
+- TCP 80/443: 仅限 Cloudflare IP 段
+
+#### 1.3 初始化服务器
+
 ```bash
-git clone <your-repo-url> multimo
-cd multimo
+# SSH 登录服务器
+ssh root@<ECS公网IP>
+
+# 上传并运行初始化脚本
+scp deploy/aliyun/init-ecs.sh root@<ECS_IP>:/tmp/
+ssh root@<ECS_IP> "bash /tmp/init-ecs.sh"
 ```
 
-### 2.2 配置环境变量
-复制生产环境配置模板：
-```bash
-cp .env.production.example .env
-```
-**重要**: 编辑 `.env` 文件，填入您的真实配置：
-- `LLM_API_KEY`: 必填
-- `SECRET_KEY`: 修改为随机字符串
-- `CORS_ORIGINS`: 修改为您的域名 (如 `["https://multimo.yourdomain.com"]`)
+或直接在服务器上执行：
 
-### 2.3 启动服务
-使用提供的部署脚本或直接运行 Docker Compose：
 ```bash
-# 赋予脚本执行权限
-chmod +x deploy.sh
-
-# 启动
-./deploy.sh
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker && systemctl start docker
+apt-get install -y docker-compose-plugin git
+mkdir -p /opt/multimo
 ```
 
-## 3. Cloudflare 配置
+---
 
-### 3.1 DNS 设置
-在 Cloudflare 后台：
-- 添加 `A` 记录：`multimo` -> 指向您的阿里云 ECS 公网 IP。
-- 确保 "Proxy status" 为 **Proxied** (橙色云朵)，这样流量才会经过 Cloudflare。
+### 第二步：Cloudflare 配置
 
-### 3.2 SSL/TLS 设置
-- 进入 **SSL/TLS** -> **Overview**。
-- 将模式设置为 **Full** (如果您的 Nginx 配置了自签名证书) 或 **Flexible** (如果 Nginx 只监听 80 端口)。
-  - **推荐方案**: Nginx 监听 80 端口，Cloudflare 设置为 **Flexible**。这样 Cloudflare 到 ECS 走 HTTP，Cloudflare 到用户走 HTTPS。
-  - **更安全方案**: Nginx 配置自签名证书监听 443，Cloudflare 设置为 **Full**。
+详细步骤请参考 [../cloudflare/README.md](../cloudflare/README.md)
 
-### 3.3 页面规则 (可选)
-如果遇到 WebSocket 断连或超时问题，可以在 Cloudflare **Rules** 中设置：
-- URL: `multimo.yourdomain.com/api/*`
-- Setting: `Cache Level` = `Bypass` (不缓存 API 请求)
-- Setting: `Proxy Read Timeout` = `300` (延长超时时间)
+#### 2.1 域名托管
 
-## 4. 维护与更新
+1. 在 Cloudflare 添加站点 `sea-ming.com`
+2. 到域名注册商修改 NS 记录指向 Cloudflare
 
-### 查看日志
+#### 2.2 DNS 记录
+
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | multimo | `<ECS公网IP>` | Proxied |
+| A | test | `<ECS公网IP>` | Proxied |
+
+#### 2.3 SSL/TLS 设置
+
+1. 进入 SSL/TLS -> Overview
+2. 选择 **Full (strict)**
+
+#### 2.4 生成 Origin Certificate
+
+1. 进入 SSL/TLS -> Origin Server
+2. Create Certificate
+3. Hostnames: `*.sea-ming.com`, `sea-ming.com`
+4. Validity: 15 years
+5. **保存证书和私钥**
+
+---
+
+### 第三步：部署代码
+
+#### 3.1 获取代码
+
 ```bash
-docker-compose logs -f backend
-docker-compose logs -f frontend
+cd /opt/multimo
+git clone https://github.com/your-repo/multimo.git .
 ```
 
-### 更新代码
+#### 3.2 配置 SSL 证书
+
 ```bash
+# 创建证书目录
+mkdir -p deploy/cloudflare/certs
+
+# 将 Cloudflare Origin Certificate 保存到文件
+vim deploy/cloudflare/certs/origin.pem   # 粘贴证书内容
+vim deploy/cloudflare/certs/origin.key   # 粘贴私钥内容
+
+# 设置权限
+chmod 600 deploy/cloudflare/certs/*
+```
+
+#### 3.3 配置环境变量
+
+```bash
+# Production 环境
+cp .env.production.example .env.production
+vim .env.production
+```
+
+必须修改的配置：
+```ini
+SECRET_KEY=<生成一个随机字符串>
+LLM_API_KEY=<你的 OpenAI API Key>
+CORS_ORIGINS=["https://multimo.sea-ming.com"]
+API_KEYS=[{"id": "admin", "key": "<你的API密钥>", "name": "Admin"}]
+```
+
+```bash
+# Staging 环境
+cp .env.staging.example .env.staging
+vim .env.staging
+```
+
+#### 3.4 部署服务
+
+```bash
+# 部署所有环境
+./deploy.sh all
+
+# 或单独部署
+./deploy.sh prod      # 仅 Production
+./deploy.sh staging   # 仅 Staging
+```
+
+---
+
+### 第四步：验证部署
+
+#### 4.1 检查容器状态
+
+```bash
+./deploy.sh status
+```
+
+应该看到所有容器状态为 `Up`:
+```
+NAME                     STATUS
+multimo-nginx            Up
+multimo-backend-prod     Up (healthy)
+multimo-frontend-prod    Up
+multimo-backend-staging  Up (healthy)
+multimo-frontend-staging Up
+```
+
+#### 4.2 测试访问
+
+```bash
+# 测试 Production
+curl -I https://multimo.sea-ming.com
+curl https://multimo.sea-ming.com/api/health
+
+# 测试 Staging
+curl -I https://test.sea-ming.com
+curl https://test.sea-ming.com/api/health
+```
+
+#### 4.3 检查 SSL 证书
+
+```bash
+curl -vI https://multimo.sea-ming.com 2>&1 | grep -A 5 "Server certificate"
+```
+
+---
+
+## 常用运维命令
+
+### 部署管理
+
+```bash
+./deploy.sh prod      # 部署 Production
+./deploy.sh staging   # 部署 Staging
+./deploy.sh all       # 部署所有
+./deploy.sh stop      # 停止所有
+./deploy.sh restart   # 重启所有
+./deploy.sh status    # 查看状态
+./deploy.sh logs      # 查看日志
+```
+
+### 日志查看
+
+```bash
+# 实时日志
+docker logs -f multimo-backend-prod
+docker logs -f multimo-nginx
+
+# 最近 100 行
+docker logs --tail 100 multimo-backend-prod
+
+# 指定时间后的日志
+docker logs --since 1h multimo-backend-prod
+```
+
+### 健康检查
+
+```bash
+bash deploy/aliyun/healthcheck.sh
+```
+
+### 更新部署
+
+```bash
+cd /opt/multimo
 git pull
-./deploy.sh
+./deploy.sh all
 ```
 
 ### 数据备份
-定期备份以下目录：
-- `backend/uploads`
-- `backend/tasks.db`
-- `backend/storage.db`
+
+```bash
+# 备份 Production 数据
+tar -czf backup-prod-$(date +%Y%m%d).tar.gz data/prod/
+
+# 备份 Staging 数据
+tar -czf backup-staging-$(date +%Y%m%d).tar.gz data/staging/
+```
+
+---
+
+## 故障排查
+
+### 问题：Error 525 - SSL handshake failed
+
+**原因**: Nginx 没有正确配置 Origin Certificate
+
+**解决**:
+1. 检查证书文件是否存在：
+   ```bash
+   ls -la deploy/cloudflare/certs/
+   ```
+2. 检查 Nginx 配置：
+   ```bash
+   docker exec multimo-nginx nginx -t
+   ```
+3. 重启 Nginx：
+   ```bash
+   docker restart multimo-nginx
+   ```
+
+### 问题：Error 521 - Web server is down
+
+**原因**: Cloudflare 无法连接到 ECS
+
+**解决**:
+1. 检查安全组是否允许 Cloudflare IP
+2. 检查容器是否运行：`docker ps`
+3. 检查 Nginx 是否监听 443 端口
+
+### 问题：Error 522 - Connection timed out
+
+**原因**: 服务响应超时
+
+**解决**:
+1. 检查后端服务是否正常
+2. 检查服务器负载：`htop`
+3. 查看后端日志找错误原因
+
+### 问题：API 返回 CORS 错误
+
+**原因**: CORS_ORIGINS 配置不正确
+
+**解决**:
+编辑 `.env.production`:
+```ini
+CORS_ORIGINS=["https://multimo.sea-ming.com"]
+```
+然后重启后端：
+```bash
+docker restart multimo-backend-prod
+```
+
+### 问题：容器启动后立即退出
+
+**原因**: 配置错误或依赖问题
+
+**解决**:
+```bash
+# 查看退出原因
+docker logs multimo-backend-prod
+
+# 常见原因：
+# - .env 文件不存在
+# - LLM_API_KEY 未配置
+# - 端口冲突
+```
+
+---
+
+## 目录结构
+
+```
+/opt/multimo/
+├── deploy/
+│   ├── aliyun/
+│   │   ├── README.md          # 本文档
+│   │   ├── init-ecs.sh        # ECS 初始化脚本
+│   │   ├── security-group.md  # 安全组配置
+│   │   ├── server-deploy.sh   # 服务器部署脚本
+│   │   └── healthcheck.sh     # 健康检查脚本
+│   ├── cloudflare/
+│   │   ├── README.md          # Cloudflare 配置指南
+│   │   └── certs/             # SSL 证书目录 (不提交到 Git)
+│   │       ├── origin.pem
+│   │       └── origin.key
+│   ├── nginx/
+│   │   ├── Dockerfile
+│   │   └── nginx.conf         # Nginx 配置
+│   ├── logging/
+│   │   └── docker-compose.logging.yml
+│   └── monitoring/
+│       └── README.md          # 监控配置指南
+├── data/
+│   ├── prod/                  # Production 数据 (不提交到 Git)
+│   │   ├── uploads/
+│   │   ├── logs/
+│   │   ├── tasks.db
+│   │   └── storage.db
+│   └── staging/               # Staging 数据 (不提交到 Git)
+│       ├── uploads/
+│       ├── logs/
+│       ├── tasks.db
+│       └── storage.db
+├── docker-compose.prod.yml    # Production 编排
+├── docker-compose.staging.yml # Staging 编排
+├── .env.production            # Production 环境变量 (不提交到 Git)
+├── .env.staging               # Staging 环境变量 (不提交到 Git)
+└── deploy.sh                  # 部署脚本
+```
+
+---
+
+## 联系与支持
+
+如有问题，请提交 GitHub Issue 或联系管理员。
