@@ -1825,10 +1825,6 @@ const workflowSteps = computed(() => {
 })
 
 // Methods
-const addLog = (msg) => {
-  emit('add-log', msg)
-}
-
 const isSectionCompleted = (sectionIndex) => {
   return !!generatedSections.value[sectionIndex]
 }
