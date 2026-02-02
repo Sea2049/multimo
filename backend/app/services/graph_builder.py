@@ -316,15 +316,41 @@ class GraphBuilderService:
             self.task_manager.fail_task(task_id, error_msg)
     
     def create_graph(self, name: str) -> str:
-        """创建Zep图谱（公开方法）"""
+        """创建Zep图谱（公开方法），带重试机制"""
         graph_id = f"multimo_{uuid.uuid4().hex[:16]}"
+        max_retries = 5
+        base_delay = 2.0
+        last_error = None
         
-        self.client.graph.create(
-            graph_id=graph_id,
-            name=name,
-            description="Multimo Social Simulation Graph"
-        )
+        for retry in range(max_retries):
+            try:
+                self.client.graph.create(
+                    graph_id=graph_id,
+                    name=name,
+                    description="Multimo Social Simulation Graph"
+                )
+                return graph_id
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                
+                # 检查是否为可重试的错误
+                is_retryable = (
+                    "503" in error_str or
+                    "temporarily unavailable" in error_str or
+                    "429" in error_str or
+                    "rate limit" in error_str or
+                    "timeout" in error_str
+                )
+                
+                if is_retryable and retry < max_retries - 1:
+                    delay = base_delay * (2 ** retry)
+                    time.sleep(delay)
+                else:
+                    raise
         
+        if last_error:
+            raise last_error
         return graph_id
     
     def set_ontology(self, graph_id: str, ontology: Dict[str, Any]):
@@ -408,22 +434,61 @@ class GraphBuilderService:
             if source_targets:
                 edge_definitions[name] = (edge_class, source_targets)
         
-        # 调用Zep API设置本体
+        # 调用Zep API设置本体（带重试机制）
         if entity_types or edge_definitions:
-            self.client.graph.set_ontology(
-                graph_ids=[graph_id],
-                entities=entity_types if entity_types else None,
-                edges=edge_definitions if edge_definitions else None,
-            )
+            max_retries = 5
+            base_delay = 2.0
+            last_error = None
+            
+            for retry in range(max_retries):
+                try:
+                    self.client.graph.set_ontology(
+                        graph_ids=[graph_id],
+                        entities=entity_types if entity_types else None,
+                        edges=edge_definitions if edge_definitions else None,
+                    )
+                    break  # 成功
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
+                    
+                    # 检查是否为可重试的错误
+                    is_retryable = (
+                        "503" in error_str or
+                        "temporarily unavailable" in error_str or
+                        "429" in error_str or
+                        "rate limit" in error_str or
+                        "timeout" in error_str
+                    )
+                    
+                    if is_retryable and retry < max_retries - 1:
+                        delay = base_delay * (2 ** retry)
+                        time.sleep(delay)
+                    else:
+                        raise
+            else:
+                if last_error:
+                    raise last_error
     
     def add_text_batches(
         self,
         graph_id: str,
         chunks: List[str],
         batch_size: int = 3,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        max_retries: int = 5,
+        base_delay: float = 2.0
     ) -> List[str]:
-        """分批添加文本到图谱，返回所有 episode 的 uuid 列表"""
+        """分批添加文本到图谱，返回所有 episode 的 uuid 列表
+        
+        Args:
+            graph_id: 图谱ID
+            chunks: 文本块列表
+            batch_size: 每批大小
+            progress_callback: 进度回调
+            max_retries: 最大重试次数（针对 503 等临时错误）
+            base_delay: 基础重试延迟（秒），使用指数退避
+        """
         episode_uuids = []
         total_chunks = len(chunks)
         
@@ -445,27 +510,58 @@ class GraphBuilderService:
                 for chunk in batch_chunks
             ]
             
-            # 发送到Zep
-            try:
-                batch_result = self.client.graph.add_batch(
-                    graph_id=graph_id,
-                    episodes=episodes
-                )
-                
-                # 收集返回的 episode uuid
-                if batch_result and isinstance(batch_result, list):
-                    for ep in batch_result:
-                        ep_uuid = getattr(ep, 'uuid_', None) or getattr(ep, 'uuid', None)
-                        if ep_uuid:
-                            episode_uuids.append(ep_uuid)
-                
-                # 避免请求过快
-                time.sleep(1)
-                
-            except Exception as e:
-                if progress_callback:
-                    progress_callback(f"批次 {batch_num} 发送失败: {str(e)}", 0)
-                raise
+            # 发送到Zep，带重试机制
+            last_error = None
+            for retry in range(max_retries):
+                try:
+                    batch_result = self.client.graph.add_batch(
+                        graph_id=graph_id,
+                        episodes=episodes
+                    )
+                    
+                    # 收集返回的 episode uuid
+                    if batch_result and isinstance(batch_result, list):
+                        for ep in batch_result:
+                            ep_uuid = getattr(ep, 'uuid_', None) or getattr(ep, 'uuid', None)
+                            if ep_uuid:
+                                episode_uuids.append(ep_uuid)
+                    
+                    # 成功后等待，避免请求过快
+                    time.sleep(1)
+                    break  # 成功，跳出重试循环
+                    
+                except Exception as e:
+                    last_error = e
+                    error_str = str(e).lower()
+                    
+                    # 检查是否为可重试的错误（503、429、超时等）
+                    is_retryable = (
+                        "503" in error_str or
+                        "temporarily unavailable" in error_str or
+                        "429" in error_str or
+                        "rate limit" in error_str or
+                        "timeout" in error_str or
+                        "connection" in error_str
+                    )
+                    
+                    if is_retryable and retry < max_retries - 1:
+                        # 指数退避：2s, 4s, 8s, 16s, 32s
+                        delay = base_delay * (2 ** retry)
+                        if progress_callback:
+                            progress_callback(
+                                f"批次 {batch_num} 遇到临时错误，{delay:.0f}秒后重试 ({retry + 1}/{max_retries})...",
+                                progress
+                            )
+                        time.sleep(delay)
+                    else:
+                        # 不可重试或已达最大重试次数
+                        if progress_callback:
+                            progress_callback(f"批次 {batch_num} 发送失败: {str(e)}", 0)
+                        raise
+            else:
+                # 所有重试都失败
+                if last_error:
+                    raise last_error
         
         return episode_uuids
     
