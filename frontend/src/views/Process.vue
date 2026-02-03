@@ -647,7 +647,7 @@ const loadProject = async () => {
     
     if (response.success) {
       projectData.value = response.data
-      updatePhaseByStatus(response.data.status)
+      updatePhaseByStatus(response.data.status, response.data.error)
       
       // 自动开始图谱构建
       if (response.data.status === 'ontology_generated' && !response.data.graph_id) {
@@ -676,7 +676,7 @@ const loadProject = async () => {
   }
 }
 
-const updatePhaseByStatus = (status) => {
+const updatePhaseByStatus = (status, projectError = null) => {
   switch (status) {
     case 'created':
     case 'ontology_generated':
@@ -689,7 +689,8 @@ const updatePhaseByStatus = (status) => {
       currentPhase.value = 2
       break
     case 'failed':
-      error.value = projectData.value?.error || '处理失败'
+      error.value = projectError || projectData.value?.error || '处理失败'
+      addLog(`项目失败: ${error.value}`)
       break
   }
 }

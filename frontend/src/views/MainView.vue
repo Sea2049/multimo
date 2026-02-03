@@ -290,7 +290,7 @@ const loadProject = async () => {
     const res = await getProject(currentProjectId.value)
     if (res.success) {
       projectData.value = res.data
-      updatePhaseByStatus(res.data.status)
+      updatePhaseByStatus(res.data.status, res.data.error)
       addLog(`Project loaded. Status: ${res.data.status}`)
       
       // 尝试获取关联的 Simulation
@@ -337,13 +337,16 @@ const loadProject = async () => {
   }
 }
 
-const updatePhaseByStatus = (status) => {
+const updatePhaseByStatus = (status, projectError = null) => {
   switch (status) {
     case 'created':
     case 'ontology_generated': currentPhase.value = 0; break;
     case 'graph_building': currentPhase.value = 1; break;
     case 'graph_completed': currentPhase.value = 2; break;
-    case 'failed': error.value = 'Project failed'; break;
+    case 'failed': 
+      error.value = projectError || 'Project failed (unknown error)';
+      addLog(`Project failed: ${error.value}`)
+      break;
   }
 }
 

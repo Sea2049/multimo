@@ -130,6 +130,63 @@ def reset_project(project_id: str):
     })
 
 
+@graph_bp.route('/project/<project_id>/repair', methods=['POST'])
+def repair_project(project_id: str):
+    """
+    修复项目状态
+    
+    当项目有 graph_id 但状态为 failed 时，尝试验证图谱是否存在，
+    如果存在则修复状态为 graph_completed
+    """
+    project = ProjectManager.get_project(project_id)
+    
+    if not project:
+        return jsonify(get_error_response(
+            error=f"项目不存在: {project_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404
+    
+    if not project.graph_id:
+        return jsonify({
+            "success": False,
+            "error": "项目没有 graph_id，无法修复。请重新构建图谱。",
+            "suggestion": "POST /api/graph/build with force: true"
+        }), 400
+    
+    # 尝试验证图谱是否存在
+    try:
+        builder = GraphBuilderService()
+        graph_data = builder.get_graph_data(project.graph_id)
+        
+        # 图谱存在，修复状态
+        project.status = ProjectStatus.GRAPH_COMPLETED
+        project.error = None
+        ProjectManager.save_project(project)
+        
+        return jsonify({
+            "success": True,
+            "message": f"项目状态已修复: {project_id}",
+            "data": {
+                "project_id": project_id,
+                "graph_id": project.graph_id,
+                "status": project.status.value,
+                "node_count": graph_data.get("node_count", 0),
+                "edge_count": graph_data.get("edge_count", 0)
+            }
+        })
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"修复项目失败: {error_msg}")
+        
+        return jsonify({
+            "success": False,
+            "error": f"无法验证图谱: {error_msg}",
+            "suggestion": "Zep 服务可能暂时不可用，请稍后重试或使用 force: true 重新构建"
+        }), 500
+
+
 # ============== 接口1：上传文件并生成本体 ==============
 
 @graph_bp.route('/ontology/generate', methods=['POST'])

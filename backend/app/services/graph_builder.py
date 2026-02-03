@@ -621,13 +621,59 @@ class GraphBuilderService:
         if progress_callback:
             progress_callback(f"处理完成: {completed_count}/{total_episodes}", 1.0)
     
-    def _get_graph_info(self, graph_id: str) -> GraphInfo:
-        """获取图谱信息"""
-        # 获取节点
-        nodes = self.client.graph.node.get_by_graph_id(graph_id=graph_id)
+    def _get_graph_info(self, graph_id: str, max_retries: int = 5, base_delay: float = 2.0) -> GraphInfo:
+        """获取图谱信息，带重试机制"""
+        nodes = None
+        edges = None
+        last_error = None
         
-        # 获取边
-        edges = self.client.graph.edge.get_by_graph_id(graph_id=graph_id)
+        # 带重试机制获取节点
+        for retry in range(max_retries):
+            try:
+                nodes = self.client.graph.node.get_by_graph_id(graph_id=graph_id)
+                break
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                is_retryable = (
+                    "503" in error_str or
+                    "temporarily unavailable" in error_str or
+                    "429" in error_str or
+                    "rate limit" in error_str or
+                    "timeout" in error_str
+                )
+                if is_retryable and retry < max_retries - 1:
+                    delay = base_delay * (2 ** retry)
+                    time.sleep(delay)
+                else:
+                    raise
+        
+        if nodes is None and last_error:
+            raise last_error
+        
+        # 带重试机制获取边
+        for retry in range(max_retries):
+            try:
+                edges = self.client.graph.edge.get_by_graph_id(graph_id=graph_id)
+                break
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                is_retryable = (
+                    "503" in error_str or
+                    "temporarily unavailable" in error_str or
+                    "429" in error_str or
+                    "rate limit" in error_str or
+                    "timeout" in error_str
+                )
+                if is_retryable and retry < max_retries - 1:
+                    delay = base_delay * (2 ** retry)
+                    time.sleep(delay)
+                else:
+                    raise
+        
+        if edges is None and last_error:
+            raise last_error
         
         # 统计实体类型
         entity_types = set()
@@ -644,18 +690,71 @@ class GraphBuilderService:
             entity_types=list(entity_types)
         )
     
-    def get_graph_data(self, graph_id: str) -> Dict[str, Any]:
+    def get_graph_data(self, graph_id: str, max_retries: int = 5, base_delay: float = 2.0) -> Dict[str, Any]:
         """
-        获取完整图谱数据（包含详细信息）
+        获取完整图谱数据（包含详细信息），带重试机制
         
         Args:
             graph_id: 图谱ID
+            max_retries: 最大重试次数
+            base_delay: 基础重试延迟（秒）
             
         Returns:
             包含nodes和edges的字典，包括时间信息、属性等详细数据
         """
-        nodes = self.client.graph.node.get_by_graph_id(graph_id=graph_id)
-        edges = self.client.graph.edge.get_by_graph_id(graph_id=graph_id)
+        # 带重试机制获取节点
+        nodes = None
+        edges = None
+        last_error = None
+        
+        for retry in range(max_retries):
+            try:
+                nodes = self.client.graph.node.get_by_graph_id(graph_id=graph_id)
+                break
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                is_retryable = (
+                    "503" in error_str or
+                    "temporarily unavailable" in error_str or
+                    "429" in error_str or
+                    "rate limit" in error_str or
+                    "timeout" in error_str or
+                    "connection" in error_str
+                )
+                if is_retryable and retry < max_retries - 1:
+                    delay = base_delay * (2 ** retry)
+                    time.sleep(delay)
+                else:
+                    raise
+        
+        if nodes is None and last_error:
+            raise last_error
+        
+        # 带重试机制获取边
+        for retry in range(max_retries):
+            try:
+                edges = self.client.graph.edge.get_by_graph_id(graph_id=graph_id)
+                break
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                is_retryable = (
+                    "503" in error_str or
+                    "temporarily unavailable" in error_str or
+                    "429" in error_str or
+                    "rate limit" in error_str or
+                    "timeout" in error_str or
+                    "connection" in error_str
+                )
+                if is_retryable and retry < max_retries - 1:
+                    delay = base_delay * (2 ** retry)
+                    time.sleep(delay)
+                else:
+                    raise
+        
+        if edges is None and last_error:
+            raise last_error
         
         # 创建节点映射用于获取节点名称
         node_map = {}
