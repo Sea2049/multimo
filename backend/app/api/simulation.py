@@ -1643,14 +1643,62 @@ def stop_simulation():
                 "error": "请提供 simulation_id"
             }), 400
         
-        run_state = SimulationRunner.stop_simulation(simulation_id)
+        # 先检查模拟是否存在
+        manager = SimulationManager()
+        sim_state = manager.get_simulation(simulation_id)
+        if not sim_state:
+            return jsonify({
+                "success": False,
+                "error": f"模拟不存在: {simulation_id}"
+            }), 404
+        
+        # 检查运行状态
+        run_state = SimulationRunner.get_run_state(simulation_id)
+        
+        # 如果已经停止或完成，直接返回成功
+        if run_state:
+            if run_state.runner_status.value in ["stopped", "completed"]:
+                logger.info(f"模拟已经停止或完成: {simulation_id}, status={run_state.runner_status.value}")
+                return jsonify({
+                    "success": True,
+                    "data": {
+                        "simulation_id": simulation_id,
+                        "runner_status": run_state.runner_status.value,
+                        "message": f"模拟已经处于 {run_state.runner_status.value} 状态",
+                        "already_stopped": True
+                    }
+                })
+        
+        # 尝试停止模拟
+        try:
+            run_state = SimulationRunner.stop_simulation(simulation_id)
+        except ValueError as e:
+            error_msg = str(e)
+            # 如果错误是因为模拟未在运行，检查是否已经停止
+            if "未在运行" in error_msg or "not in" in error_msg.lower():
+                # 再次检查状态
+                current_state = SimulationRunner.get_run_state(simulation_id)
+                if current_state and current_state.runner_status.value in ["stopped", "completed"]:
+                    logger.info(f"模拟已经停止: {simulation_id}")
+                    return jsonify({
+                        "success": True,
+                        "data": {
+                            "simulation_id": simulation_id,
+                            "runner_status": current_state.runner_status.value,
+                            "message": "模拟已经停止",
+                            "already_stopped": True
+                        }
+                    })
+            # 其他错误，返回400
+            return jsonify({
+                "success": False,
+                "error": error_msg
+            }), 400
         
         # 更新模拟状态
-        manager = SimulationManager()
-        state = manager.get_simulation(simulation_id)
-        if state:
-            state.status = SimulationStatus.PAUSED
-            manager._save_simulation_state(state)
+        if sim_state:
+            sim_state.status = SimulationStatus.PAUSED
+            manager._save_simulation_state(sim_state)
         
         return jsonify({
             "success": True,

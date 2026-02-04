@@ -17,8 +17,9 @@
 import os
 import json
 import time
+import glob
 import threading
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -304,7 +305,7 @@ class AutoPilotManager:
         thread = threading.Thread(
             target=self._run_auto_pilot,
             args=(simulation_id,),
-            daemon=True
+            daemon=False  # 非守护线程，确保 Flask 重启后可以恢复
         )
         # 线程安全：在锁内更新共享字典
         with self._lock:
@@ -525,67 +526,117 @@ class AutoPilotManager:
     def _step_monitor(self, simulation_id: str):
         """
         步骤3: 监控运行直到完成
+        
+        添加了健壮的错误处理和重试机制，确保网络错误或临时故障不会导致自动模式停止
         """
         logger.info(f"开始监控模拟运行: {simulation_id}")
         
         max_wait_time = 72 * 3600  # 最大等待72小时
         check_interval = 30  # 每30秒检查一次
         elapsed = 0
+        consecutive_errors = 0  # 连续错误计数
+        max_consecutive_errors = 10  # 最大连续错误次数（10次 * 30秒 = 5分钟）
         
         while elapsed < max_wait_time:
-            # 检查是否暂停
-            state = self._load_state(simulation_id)
-            if state and state.status == AutoPilotStatus.PAUSED:
-                logger.info(f"自动驾驶暂停，等待恢复: {simulation_id}")
-                while True:
-                    time.sleep(10)
-                    elapsed += 10
-                    state = self._load_state(simulation_id)
-                    if not state or state.status != AutoPilotStatus.PAUSED:
-                        break
-            
-            # 检查模拟状态
-            run_state = SimulationRunner.get_run_state(simulation_id)
-            
-            if not run_state:
-                # 模拟可能已完成或失败
-                sim_state = SimulationRunner.get_run_state(simulation_id)
-                if sim_state:
-                    if sim_state.runner_status.value == "completed":
-                        logger.info(f"模拟运行完成: {simulation_id}")
-                        return
-                    elif sim_state.runner_status.value == "failed":
-                        raise ValueError("模拟运行失败")
+            try:
+                # 检查是否暂停
+                state = self._load_state(simulation_id)
+                if state and state.status == AutoPilotStatus.PAUSED:
+                    logger.info(f"自动驾驶暂停，等待恢复: {simulation_id}")
+                    while True:
+                        time.sleep(10)
+                        elapsed += 10
+                        state = self._load_state(simulation_id)
+                        if not state or state.status != AutoPilotStatus.PAUSED:
+                            break
+                
+                # 检查是否停止
+                if state and state.status != AutoPilotStatus.ACTIVE:
+                    logger.info(f"自动驾驶已停止，退出监控: {simulation_id}")
+                    return
+                
+                # 检查模拟状态（添加重试机制）
+                run_state = None
+                try:
+                    run_state = SimulationRunner.get_run_state(simulation_id)
+                    consecutive_errors = 0  # 重置错误计数
+                except Exception as e:
+                    consecutive_errors += 1
+                    logger.warning(f"获取模拟状态失败 (连续错误 {consecutive_errors}/{max_consecutive_errors}): {simulation_id}, error={e}")
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"连续 {max_consecutive_errors} 次获取状态失败，停止监控: {simulation_id}")
+                        raise ValueError(f"无法获取模拟状态，连续失败 {max_consecutive_errors} 次")
+                    
+                    # 等待后重试
+                    time.sleep(check_interval)
+                    elapsed += check_interval
+                    continue
+                
+                if not run_state:
+                    # 模拟可能已完成或失败，尝试从 SimulationManager 获取状态
+                    try:
+                        manager = SimulationManager()
+                        sim_state = manager.get_simulation(simulation_id)
+                        if sim_state:
+                            if sim_state.status == SimulationStatus.COMPLETED:
+                                logger.info(f"模拟运行完成: {simulation_id}")
+                                return
+                            elif sim_state.status == SimulationStatus.FAILED:
+                                raise ValueError(f"模拟运行失败: {sim_state.error or '未知错误'}")
+                    except Exception as e:
+                        consecutive_errors += 1
+                        logger.warning(f"获取模拟信息失败: {simulation_id}, error={e}")
+                        if consecutive_errors >= max_consecutive_errors:
+                            raise ValueError(f"无法获取模拟信息，连续失败 {max_consecutive_errors} 次")
+                    
+                    time.sleep(check_interval)
+                    elapsed += check_interval
+                    continue
+                
+                # 检查是否完成
+                if run_state.runner_status.value == "completed":
+                    logger.info(f"模拟运行完成: {simulation_id}")
+                    return
+                elif run_state.runner_status.value == "failed":
+                    error_msg = run_state.error or "模拟运行失败"
+                    logger.error(f"模拟运行失败: {simulation_id}, error={error_msg}")
+                    raise ValueError(f"模拟运行失败: {error_msg}")
+                
+                # 更新进度
+                progress = 0
+                if run_state.total_rounds > 0:
+                    progress = int(run_state.current_round / run_state.total_rounds * 100)
+                
+                state = self._load_state(simulation_id)
+                if state:
+                    state.step_progress = progress
+                    state.step_message = f"模拟运行中: {run_state.current_round}/{run_state.total_rounds} 轮"
+                    state.progress_detail = {
+                        "current_round": run_state.current_round,
+                        "total_rounds": run_state.total_rounds,
+                        "twitter_actions": run_state.twitter_actions_count,
+                        "reddit_actions": run_state.reddit_actions_count,
+                    }
+                    self._save_state(state)
+                
                 time.sleep(check_interval)
                 elapsed += check_interval
-                continue
-            
-            # 检查是否完成
-            if run_state.runner_status.value == "completed":
-                logger.info(f"模拟运行完成: {simulation_id}")
-                return
-            elif run_state.runner_status.value == "failed":
-                raise ValueError("模拟运行失败")
-            
-            # 更新进度
-            progress = 0
-            if run_state.total_rounds > 0:
-                progress = int(run_state.current_round / run_state.total_rounds * 100)
-            
-            state = self._load_state(simulation_id)
-            if state:
-                state.step_progress = progress
-                state.step_message = f"模拟运行中: {run_state.current_round}/{run_state.total_rounds} 轮"
-                state.progress_detail = {
-                    "current_round": run_state.current_round,
-                    "total_rounds": run_state.total_rounds,
-                    "twitter_actions": run_state.twitter_actions_count,
-                    "reddit_actions": run_state.reddit_actions_count,
-                }
-                self._save_state(state)
-            
-            time.sleep(check_interval)
-            elapsed += check_interval
+                
+            except ValueError as e:
+                # 业务逻辑错误，直接抛出
+                raise
+            except Exception as e:
+                # 其他异常，记录并重试
+                consecutive_errors += 1
+                logger.error(f"监控过程中发生异常 (连续错误 {consecutive_errors}/{max_consecutive_errors}): {simulation_id}, error={e}")
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    raise ValueError(f"监控过程中连续发生 {max_consecutive_errors} 次异常: {str(e)}")
+                
+                # 等待后重试
+                time.sleep(check_interval)
+                elapsed += check_interval
         
         raise ValueError("模拟运行超时（超过72小时）")
     
@@ -816,6 +867,65 @@ class AutoPilotManager:
         logger.info(f"自动驾驶状态已重置: {simulation_id}")
         
         return AutoPilotState(simulation_id=simulation_id)
+    
+    def recover_interrupted_tasks(self) -> List[str]:
+        """
+        恢复中断的自动模式任务
+        
+        在服务启动时调用，检查所有处于 ACTIVE 状态的自动模式任务，
+        并尝试恢复它们。
+        
+        恢复逻辑：
+        1. 检查状态文件，找出所有 ACTIVE 状态的任务
+        2. 验证任务是否真的需要恢复（检查当前步骤）
+        3. 重新启动线程继续执行
+        
+        Returns:
+            恢复的任务ID列表
+        """
+        recovered_tasks = []
+        
+        # 扫描状态目录
+        state_files = glob.glob(os.path.join(self.STATE_DIR, "*_autopilot.json"))
+        
+        for state_file in state_files:
+            try:
+                with open(state_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                state = AutoPilotState.from_dict(data)
+                
+                # 只恢复 ACTIVE 状态且未完成的任务
+                if (state.status == AutoPilotStatus.ACTIVE and 
+                    state.current_step != AutoPilotStep.COMPLETED):
+                    
+                    # 检查是否已有运行线程
+                    with self._lock:
+                        if state.simulation_id in self._running_tasks:
+                            thread = self._running_tasks[state.simulation_id]
+                            if thread.is_alive():
+                                logger.info(f"自动模式任务已在运行: {state.simulation_id}")
+                                continue
+                    
+                    # 重新启动线程
+                    logger.info(f"恢复自动模式任务: {state.simulation_id}, step={state.current_step.value}")
+                    thread = threading.Thread(
+                        target=self._run_auto_pilot,
+                        args=(state.simulation_id,),
+                        daemon=False
+                    )
+                    with self._lock:
+                        self._running_tasks[state.simulation_id] = thread
+                    thread.start()
+                    recovered_tasks.append(state.simulation_id)
+                    
+            except Exception as e:
+                logger.error(f"恢复任务失败: {state_file}, error={e}")
+        
+        if recovered_tasks:
+            logger.info(f"已恢复 {len(recovered_tasks)} 个中断的自动模式任务")
+        
+        return recovered_tasks
     
     def to_dict(self, simulation_id: str) -> Dict[str, Any]:
         """
