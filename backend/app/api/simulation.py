@@ -761,6 +761,116 @@ def get_prepare_status():
         }), 500
 
 
+@simulation_bp.route('/history', methods=['GET'])
+def get_simulation_history():
+    """
+    获取历史模拟列表（带项目详情）
+    
+    用于首页历史项目展示，返回包含项目名称、描述等丰富信息的模拟列表
+    
+    Query参数：
+        limit: 返回数量限制（默认20）
+    
+    返回：
+        {
+            "success": true,
+            "data": [
+                {
+                    "simulation_id": "sim_xxxx",
+                    "project_id": "proj_xxxx",
+                    "project_name": "武大舆情分析",
+                    "simulation_requirement": "如果武汉大学发布...",
+                    "status": "completed",
+                    "entities_count": 68,
+                    "profiles_count": 68,
+                    "entity_types": ["Student", "Professor", ...],
+                    "created_at": "2024-12-10",
+                    "updated_at": "2024-12-10",
+                    "total_rounds": 120,
+                    "current_round": 120,
+                    "report_id": "report_xxxx",
+                    "version": "v1.2.0"
+                },
+                ...
+            ],
+            "count": 7
+        }
+    """
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        
+        manager = SimulationManager()
+        simulations = manager.list_simulations()[:limit]
+        
+        # 增强模拟数据，只从 Simulation 文件读取
+        enriched_simulations = []
+        for sim in simulations:
+            sim_dict = sim.to_dict()
+            
+            # 获取模拟配置信息（从 simulation_config.json 读取 simulation_requirement）
+            config = manager.get_simulation_config(sim.simulation_id)
+            if config:
+                sim_dict["simulation_requirement"] = config.get("simulation_requirement", "")
+                time_config = config.get("time_config", {})
+                sim_dict["total_simulation_hours"] = time_config.get("total_simulation_hours", 0)
+                # 推荐轮数（后备值）
+                recommended_rounds = int(
+                    time_config.get("total_simulation_hours", 0) * 60 / 
+                    max(time_config.get("minutes_per_round", 60), 1)
+                )
+            else:
+                sim_dict["simulation_requirement"] = ""
+                sim_dict["total_simulation_hours"] = 0
+                recommended_rounds = 0
+            
+            # 获取运行状态（从 run_state.json 读取用户设置的实际轮数）
+            run_state = SimulationRunner.get_run_state(sim.simulation_id)
+            if run_state:
+                sim_dict["current_round"] = run_state.current_round
+                sim_dict["runner_status"] = run_state.runner_status.value
+                # 使用用户设置的 total_rounds，若无则使用推荐轮数
+                sim_dict["total_rounds"] = run_state.total_rounds if run_state.total_rounds > 0 else recommended_rounds
+            else:
+                sim_dict["current_round"] = 0
+                sim_dict["runner_status"] = "idle"
+                sim_dict["total_rounds"] = recommended_rounds
+            
+            # 获取关联项目的文件列表（最多3个）
+            project = ProjectManager.get_project(sim.project_id)
+            if project and hasattr(project, 'files') and project.files:
+                sim_dict["files"] = [
+                    {"filename": f.get("filename", "未知文件")} 
+                    for f in project.files[:3]
+                ]
+            else:
+                sim_dict["files"] = []
+            
+            # 获取关联的 report_id（查找该 simulation 最新的 report）
+            sim_dict["report_id"] = _get_report_id_for_simulation(sim.simulation_id)
+            
+            # 添加版本号
+            sim_dict["version"] = "v1.2.0"
+            
+            # 格式化日期
+            try:
+                created_date = sim_dict.get("created_at", "")[:10]
+                sim_dict["created_date"] = created_date
+            except:
+                sim_dict["created_date"] = ""
+            
+            enriched_simulations.append(sim_dict)
+        
+        return jsonify({
+            "success": True,
+            "data": enriched_simulations,
+            "count": len(enriched_simulations)
+        })
+        
+    except Exception as e:
+        logger.error(f"获取历史模拟失败: {str(e)}")
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
+
+
 @simulation_bp.route('/<simulation_id>', methods=['GET'])
 def get_simulation(simulation_id: str):
     """获取模拟状态"""
@@ -919,116 +1029,6 @@ def _get_report_ids_for_simulation(simulation_id: str) -> list:
         logger.warning(f"查找 simulation {simulation_id} 的所有 report 失败: {e}")
     
     return report_ids
-
-
-@simulation_bp.route('/history', methods=['GET'])
-def get_simulation_history():
-    """
-    获取历史模拟列表（带项目详情）
-    
-    用于首页历史项目展示，返回包含项目名称、描述等丰富信息的模拟列表
-    
-    Query参数：
-        limit: 返回数量限制（默认20）
-    
-    返回：
-        {
-            "success": true,
-            "data": [
-                {
-                    "simulation_id": "sim_xxxx",
-                    "project_id": "proj_xxxx",
-                    "project_name": "武大舆情分析",
-                    "simulation_requirement": "如果武汉大学发布...",
-                    "status": "completed",
-                    "entities_count": 68,
-                    "profiles_count": 68,
-                    "entity_types": ["Student", "Professor", ...],
-                    "created_at": "2024-12-10",
-                    "updated_at": "2024-12-10",
-                    "total_rounds": 120,
-                    "current_round": 120,
-                    "report_id": "report_xxxx",
-                    "version": "v1.2.0"
-                },
-                ...
-            ],
-            "count": 7
-        }
-    """
-    try:
-        limit = request.args.get('limit', 20, type=int)
-        
-        manager = SimulationManager()
-        simulations = manager.list_simulations()[:limit]
-        
-        # 增强模拟数据，只从 Simulation 文件读取
-        enriched_simulations = []
-        for sim in simulations:
-            sim_dict = sim.to_dict()
-            
-            # 获取模拟配置信息（从 simulation_config.json 读取 simulation_requirement）
-            config = manager.get_simulation_config(sim.simulation_id)
-            if config:
-                sim_dict["simulation_requirement"] = config.get("simulation_requirement", "")
-                time_config = config.get("time_config", {})
-                sim_dict["total_simulation_hours"] = time_config.get("total_simulation_hours", 0)
-                # 推荐轮数（后备值）
-                recommended_rounds = int(
-                    time_config.get("total_simulation_hours", 0) * 60 / 
-                    max(time_config.get("minutes_per_round", 60), 1)
-                )
-            else:
-                sim_dict["simulation_requirement"] = ""
-                sim_dict["total_simulation_hours"] = 0
-                recommended_rounds = 0
-            
-            # 获取运行状态（从 run_state.json 读取用户设置的实际轮数）
-            run_state = SimulationRunner.get_run_state(sim.simulation_id)
-            if run_state:
-                sim_dict["current_round"] = run_state.current_round
-                sim_dict["runner_status"] = run_state.runner_status.value
-                # 使用用户设置的 total_rounds，若无则使用推荐轮数
-                sim_dict["total_rounds"] = run_state.total_rounds if run_state.total_rounds > 0 else recommended_rounds
-            else:
-                sim_dict["current_round"] = 0
-                sim_dict["runner_status"] = "idle"
-                sim_dict["total_rounds"] = recommended_rounds
-            
-            # 获取关联项目的文件列表（最多3个）
-            project = ProjectManager.get_project(sim.project_id)
-            if project and hasattr(project, 'files') and project.files:
-                sim_dict["files"] = [
-                    {"filename": f.get("filename", "未知文件")} 
-                    for f in project.files[:3]
-                ]
-            else:
-                sim_dict["files"] = []
-            
-            # 获取关联的 report_id（查找该 simulation 最新的 report）
-            sim_dict["report_id"] = _get_report_id_for_simulation(sim.simulation_id)
-            
-            # 添加版本号
-            sim_dict["version"] = "v1.2.0"
-            
-            # 格式化日期
-            try:
-                created_date = sim_dict.get("created_at", "")[:10]
-                sim_dict["created_date"] = created_date
-            except:
-                sim_dict["created_date"] = ""
-            
-            enriched_simulations.append(sim_dict)
-        
-        return jsonify({
-            "success": True,
-            "data": enriched_simulations,
-            "count": len(enriched_simulations)
-        })
-        
-    except Exception as e:
-        logger.error(f"获取历史模拟失败: {str(e)}")
-        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 
 @simulation_bp.route('/<simulation_id>', methods=['DELETE'])
