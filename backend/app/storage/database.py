@@ -2,6 +2,7 @@
 
 import sqlite3
 import json
+import threading
 from typing import Dict, Any, List, Optional
 from contextlib import contextmanager
 from datetime import datetime
@@ -21,12 +22,17 @@ class DatabaseStorage(MemoryStorage):
     
     @contextmanager
     def get_connection(self):
-        """获取数据库连接上下文管理器"""
+        """获取数据库连接上下文管理器
+        
+        复用线程本地连接，不在每次操作后关闭连接。
+        异常时自动回滚事务，确保数据一致性。
+        """
         conn = self._connect()
         try:
             yield conn
-        finally:
-            conn.close()
+        except Exception:
+            conn.rollback()
+            raise
     
     def _connect(self):
         """建立数据库连接"""
@@ -38,7 +44,11 @@ class DatabaseStorage(MemoryStorage):
 
 
 class SQLiteStorage(DatabaseStorage):
-    """SQLite 存储实现"""
+    """SQLite 存储实现
+    
+    使用线程本地存储实现连接池，确保每个线程复用自己的连接。
+    支持高并发场景，避免连接泄漏和性能问题。
+    """
     
     def __init__(self, database_path: str = "storage.db"):
         """初始化 SQLite 存储
@@ -48,13 +58,28 @@ class SQLiteStorage(DatabaseStorage):
         """
         super().__init__(database_path)
         self.database_path = database_path
+        # 线程本地存储，每个线程有独立的连接
+        self._local = threading.local()
         self._initialize()
     
     def _connect(self):
-        """建立 SQLite 连接"""
-        conn = sqlite3.connect(self.database_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        """建立 SQLite 连接（线程安全）
+        
+        使用线程本地存储复用连接，避免频繁创建/销毁连接的开销。
+        每个线程维护自己的连接，互不干扰。
+        
+        Returns:
+            sqlite3.Connection: 当前线程的数据库连接
+        """
+        # 检查线程本地存储中是否已有连接
+        if not hasattr(self._local, 'conn') or self._local.conn is None:
+            self._local.conn = sqlite3.connect(
+                self.database_path,
+                check_same_thread=False,  # 允许多线程访问（每个线程有自己的连接）
+                timeout=30.0  # 设置锁等待超时，避免长时间阻塞
+            )
+            self._local.conn.row_factory = sqlite3.Row
+        return self._local.conn
     
     def _initialize(self):
         """初始化数据库"""
@@ -793,3 +818,27 @@ class SQLiteStorage(DatabaseStorage):
         except Exception as e:
             print(f"Error checking invitation code validity: {e}")
             return False, "验证邀请码时发生错误"
+    
+    # ============= 连接池管理方法 =============
+    
+    def close_connection(self):
+        """关闭当前线程的数据库连接
+        
+        在线程结束时调用此方法释放连接资源。
+        对于长期运行的应用，建议在请求结束时调用。
+        """
+        if hasattr(self._local, 'conn') and self._local.conn:
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass  # 忽略关闭时的错误
+            finally:
+                self._local.conn = None
+    
+    def close_all_connections(self):
+        """关闭所有连接（仅关闭当前线程的连接）
+        
+        注意：由于使用线程本地存储，此方法只能关闭当前线程的连接。
+        其他线程的连接需要在各自线程中调用 close_connection()。
+        """
+        self.close_connection()

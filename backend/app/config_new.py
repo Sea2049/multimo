@@ -184,6 +184,17 @@ class AppConfig(BaseSettings):
                     "Please set JWT_SECRET_KEY in your .env file or environment variables."
                 )
         
+        # API Key 认证：生产环境警告
+        if not self.DEBUG and not self.API_KEY_ENABLED:
+            import warnings
+            warnings.warn(
+                "API_KEY_ENABLED is False in production environment. "
+                "This may expose your API to unauthorized access. "
+                "Set API_KEY_ENABLED=true in your .env file for better security.",
+                UserWarning,
+                stacklevel=2
+            )
+        
         self._create_directories()
     
     def _create_directories(self):
@@ -218,6 +229,10 @@ class AppConfig(BaseSettings):
         # 生产环境必须配置 SECRET_KEY
         if not self.DEBUG and not self.SECRET_KEY:
             errors.append("生产环境必须配置 SECRET_KEY")
+        
+        # 生产环境 API Key 认证警告（不作为错误，但会记录）
+        if not self.DEBUG and not self.API_KEY_ENABLED:
+            errors.append("警告: 生产环境建议启用 API_KEY_ENABLED 以保护 API 端点")
         
         return errors
     

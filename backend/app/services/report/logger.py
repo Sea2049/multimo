@@ -10,6 +10,7 @@
 
 import os
 import json
+import threading
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -25,6 +26,8 @@ class ReportLogger:
     
     在报告文件夹中生成 agent_log.jsonl 文件，记录每一步详细动作。
     每行是一个完整的 JSON 对象，包含时间戳、动作类型、详细内容等。
+    
+    线程安全：支持并行生成章节时的并发写入。
     """
     
     def __init__(self, report_id: str):
@@ -40,6 +43,8 @@ class ReportLogger:
             config.UPLOAD_FOLDER, 'reports', report_id, 'agent_log.jsonl'
         )
         self.start_time = datetime.now()
+        # 线程锁，确保并发写入时的线程安全
+        self._write_lock = threading.Lock()
         self._ensure_log_file()
     
     def _ensure_log_file(self):
@@ -80,9 +85,11 @@ class ReportLogger:
             "details": details
         }
         
+        # 使用线程锁和上下文管理器确保并发安全和文件正确关闭
         try:
-            with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            with self._write_lock:
+                with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
         except IOError as e:
             logger.error(f"Failed to write agent log to {self.log_file_path}: {e}")
     

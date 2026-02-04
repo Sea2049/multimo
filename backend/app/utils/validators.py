@@ -9,6 +9,15 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 尝试导入 python-magic 进行更可靠的 MIME 类型检测
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+    logger.info("python-magic 已加载，启用增强 MIME 类型检测")
+except ImportError:
+    MAGIC_AVAILABLE = False
+    logger.warning("python-magic 未安装，使用回退的魔数检测方式")
+
 
 class ValidationType(Enum):
     """验证类型枚举"""
@@ -698,6 +707,9 @@ def validate_file_extension(filename: str) -> ValidationResult:
 def validate_file_mime_type(file_stream, max_size: int = 50 * 1024 * 1024) -> ValidationResult:
     """验证文件 MIME 类型
     
+    使用 python-magic 进行更可靠的 MIME 类型检测，
+    如果 python-magic 不可用则回退到魔数检测。
+    
     Args:
         file_stream: 文件流
         max_size: 最大文件大小
@@ -711,6 +723,7 @@ def validate_file_mime_type(file_stream, max_size: int = 50 * 1024 * 1024) -> Va
         result.add_error("file", "文件不能为空")
         return result
     
+    # 检查文件大小
     file_stream.seek(0, 2)
     file_size = file_stream.tell()
     file_stream.seek(0)
@@ -719,38 +732,84 @@ def validate_file_mime_type(file_stream, max_size: int = 50 * 1024 * 1024) -> Va
         result.add_error("file_size", f"文件大小超出限制: {file_size} > {max_size}")
         return result
     
-    header = file_stream.read(1024)
+    # 读取文件头进行 MIME 类型检测（增加到 2048 字节以提高准确性）
+    header = file_stream.read(2048)
     file_stream.seek(0)
     
-    if header.startswith(b"%PDF"):
-        mime_type = "application/pdf"
-    elif header.startswith(b"#!"):
-        mime_type = "text/script"
-    elif header.startswith(b"<!DOCTYPE") or header.startswith(b"<html"):
-        mime_type = "text/html"
-    elif header.startswith(b"PK\x03\x04"):
-        mime_type = "application/zip"
-    elif header.startswith(b"\x1f\x8b"):
-        mime_type = "application/gzip"
-    else:
-        mime_type = "text/plain"
+    mime_type = None
     
-    if mime_type == "text/script":
-        result.add_error("mime_type", "不支持的脚本文件")
+    # 优先使用 python-magic 进行检测
+    if MAGIC_AVAILABLE:
+        try:
+            mime_type = magic.from_buffer(header, mime=True)
+            logger.debug(f"python-magic 检测到 MIME 类型: {mime_type}")
+        except Exception as e:
+            logger.warning(f"python-magic 检测失败，回退到魔数检测: {e}")
+            mime_type = None
+    
+    # 回退到魔数检测
+    if mime_type is None:
+        if header.startswith(b"%PDF"):
+            mime_type = "application/pdf"
+        elif header.startswith(b"#!"):
+            mime_type = "text/x-script"
+        elif header.startswith(b"<!DOCTYPE") or header.startswith(b"<html") or header.startswith(b"<HTML"):
+            mime_type = "text/html"
+        elif header.startswith(b"<?xml"):
+            mime_type = "application/xml"
+        elif header.startswith(b"PK\x03\x04"):
+            mime_type = "application/zip"
+        elif header.startswith(b"\x1f\x8b"):
+            mime_type = "application/gzip"
+        elif header.startswith(b"Rar!"):
+            mime_type = "application/x-rar-compressed"
+        elif header.startswith(b"7z\xbc\xaf"):
+            mime_type = "application/x-7z-compressed"
+        elif header.startswith(b"\x89PNG"):
+            mime_type = "image/png"
+        elif header.startswith(b"\xff\xd8\xff"):
+            mime_type = "image/jpeg"
+        elif header.startswith(b"GIF8"):
+            mime_type = "image/gif"
+        elif header.startswith(b"{") or header.startswith(b"["):
+            # 可能是 JSON
+            mime_type = "application/json"
+        else:
+            mime_type = "text/plain"
+    
+    # 危险 MIME 类型检查
+    dangerous_mime_types = {
+        "text/x-script", "text/x-python", "text/x-perl", "text/x-ruby",
+        "text/x-php", "application/x-php", "text/x-shellscript",
+        "text/html", "application/xhtml+xml",
+        "application/zip", "application/x-rar-compressed", "application/x-7z-compressed",
+        "application/gzip", "application/x-tar",
+        "application/x-executable", "application/x-dosexec",
+        "image/png", "image/jpeg", "image/gif", "image/webp"  # 不允许上传图片
+    }
+    
+    if mime_type in dangerous_mime_types:
+        result.add_error("mime_type", f"不支持的文件类型: {mime_type}")
         return result
     
-    if mime_type == "text/html":
-        result.add_error("mime_type", "不支持的 HTML 文件")
-        return result
+    # 检查是否在白名单中
+    if mime_type not in ALLOWED_MIME_TYPES:
+        # 宽松模式：如果是纯文本类型，允许通过
+        if not mime_type.startswith("text/"):
+            result.add_error("mime_type", f"不支持的文件类型: {mime_type}")
+            return result
     
     return result
 
 
-def validate_file_content(file_stream) -> ValidationResult:
+def validate_file_content(file_stream, max_scan_size: int = 64 * 1024) -> ValidationResult:
     """扫描文件内容中的危险模式
+    
+    对于小文件扫描全部内容，对于大文件扫描前 64KB。
     
     Args:
         file_stream: 文件流
+        max_scan_size: 最大扫描大小（默认 64KB，之前为 8KB）
         
     Returns:
         验证结果
@@ -760,12 +819,44 @@ def validate_file_content(file_stream) -> ValidationResult:
     if not file_stream:
         return result
     
-    content = file_stream.read(8192)
+    # 获取文件大小
+    file_stream.seek(0, 2)
+    file_size = file_stream.tell()
     file_stream.seek(0)
     
+    # 对于小文件（< max_scan_size），扫描全部内容
+    # 对于大文件，扫描前 max_scan_size 字节
+    scan_size = min(file_size, max_scan_size)
+    content = file_stream.read(scan_size)
+    file_stream.seek(0)
+    
+    # 转为小写进行匹配
+    content_lower = content.lower()
+    
+    # 检查危险模式
     for pattern in DANGEROUS_PATTERNS:
-        if pattern in content.lower():
+        if pattern in content_lower:
             result.add_error("content", "文件包含危险内容")
+            logger.warning(f"文件内容扫描发现危险模式: {pattern}")
+            break
+    
+    # 额外检查：检测嵌入的可执行代码特征
+    additional_patterns = [
+        b"eval(",
+        b"exec(",
+        b"system(",
+        b"subprocess",
+        b"os.system",
+        b"__import__",
+        b"compile(",
+        b"globals(",
+        b"locals(",
+    ]
+    
+    for pattern in additional_patterns:
+        if pattern in content_lower:
+            result.add_error("content", "文件包含潜在危险代码")
+            logger.warning(f"文件内容扫描发现潜在危险代码: {pattern}")
             break
     
     return result
