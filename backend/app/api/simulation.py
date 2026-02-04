@@ -16,6 +16,7 @@ from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
+from ..services.report_agent import ReportManager
 from ..utils.logger import get_logger
 from ..models.project import ProjectManager
 from ..utils.validators import (
@@ -872,6 +873,54 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
         return None
 
 
+def _get_report_ids_for_simulation(simulation_id: str) -> list:
+    """
+    获取 simulation 对应的所有 report_id 列表
+    
+    遍历 reports 目录，找出所有 simulation_id 匹配的 report
+    
+    Args:
+        simulation_id: 模拟ID
+        
+    Returns:
+        report_id 列表（可能为空）
+    """
+    import json
+    
+    # reports 目录路径
+    reports_dir = os.path.join(get_config().UPLOAD_FOLDER, 'reports')
+    if not os.path.exists(reports_dir):
+        return []
+    
+    report_ids = []
+    
+    try:
+        for report_folder in os.listdir(reports_dir):
+            report_path = os.path.join(reports_dir, report_folder)
+            if not os.path.isdir(report_path):
+                continue
+            
+            meta_file = os.path.join(report_path, "meta.json")
+            if not os.path.exists(meta_file):
+                continue
+            
+            try:
+                with open(meta_file, 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                
+                if meta.get("simulation_id") == simulation_id:
+                    report_id = meta.get("report_id")
+                    if report_id:
+                        report_ids.append(report_id)
+            except Exception:
+                continue
+        
+    except Exception as e:
+        logger.warning(f"查找 simulation {simulation_id} 的所有 report 失败: {e}")
+    
+    return report_ids
+
+
 @simulation_bp.route('/history', methods=['GET'])
 def get_simulation_history():
     """
@@ -979,6 +1028,75 @@ def get_simulation_history():
         
     except Exception as e:
         logger.error(f"获取历史模拟失败: {str(e)}")
+        return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
+
+
+@simulation_bp.route('/<simulation_id>', methods=['DELETE'])
+def delete_simulation(simulation_id: str):
+    """
+    删除推演记录
+    
+    流程：
+    1. 删除该 simulation 关联的所有报告
+    2. 调用 SimulationManager.delete_simulation（内部会先停止运行中的模拟、清理内存、删除目录）
+    
+    Args:
+        simulation_id: 模拟ID
+    """
+    try:
+        # 校验 simulation_id 格式（防止路径遍历）
+        if not simulation_id or not simulation_id.startswith('sim_'):
+            return jsonify(get_error_response(
+                error="无效的模拟ID格式",
+                status_code=400,
+                error_code=ErrorCode.INVALID_INPUT
+            )), 400
+        
+        # 1. 删除该 simulation 关联的所有报告
+        report_ids = _get_report_ids_for_simulation(simulation_id)
+        deleted_reports = []
+        failed_reports = []
+        
+        for report_id in report_ids:
+            try:
+                success = ReportManager.delete_report(report_id)
+                if success:
+                    deleted_reports.append(report_id)
+                    logger.info(f"已删除报告: {report_id} (simulation: {simulation_id})")
+                else:
+                    failed_reports.append(report_id)
+                    logger.warning(f"报告不存在或删除失败: {report_id}")
+            except Exception as e:
+                failed_reports.append(report_id)
+                logger.error(f"删除报告失败: {report_id}, error={e}")
+        
+        # 2. 删除模拟记录（内部会先停止运行中的模拟、清理内存、删除目录）
+        manager = SimulationManager()
+        manager.delete_simulation(simulation_id)
+        
+        message = f"推演记录已删除: {simulation_id}"
+        if deleted_reports:
+            message += f"，已删除 {len(deleted_reports)} 个关联报告"
+        if failed_reports:
+            message += f"，{len(failed_reports)} 个报告删除失败（可能已不存在）"
+        
+        return jsonify({
+            "success": True,
+            "message": message,
+            "deleted_reports": deleted_reports,
+            "failed_reports": failed_reports if failed_reports else None
+        }), 200
+        
+    except ValueError as e:
+        # 停止模拟失败等情况
+        return jsonify(get_error_response(
+            error=str(e),
+            status_code=400,
+            error_code=ErrorCode.INVALID_INPUT
+        )), 400
+        
+    except Exception as e:
+        logger.error(f"删除推演记录失败: {simulation_id}, error={str(e)}")
         return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 
 

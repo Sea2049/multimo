@@ -37,21 +37,28 @@
         <!-- 卡片头部：simulation_id 和 功能可用状态 -->
         <div class="card-header">
           <span class="card-id">{{ formatSimulationId(project.simulation_id) }}</span>
-          <div class="card-status-icons">
-            <span 
-              class="status-icon" 
-              :class="{ available: project.project_id, unavailable: !project.project_id }"
-              title="图谱构建"
-            >◇</span>
-            <span 
-              class="status-icon available" 
-              title="环境搭建"
-            >◈</span>
-            <span 
-              class="status-icon" 
-              :class="{ available: project.report_id, unavailable: !project.report_id }"
-              title="分析报告"
-            >◆</span>
+          <div class="card-header-right">
+            <div class="card-status-icons">
+              <span 
+                class="status-icon" 
+                :class="{ available: project.project_id, unavailable: !project.project_id }"
+                title="图谱构建"
+              >◇</span>
+              <span 
+                class="status-icon available" 
+                title="环境搭建"
+              >◈</span>
+              <span 
+                class="status-icon" 
+                :class="{ available: project.report_id, unavailable: !project.report_id }"
+                title="分析报告"
+              >◆</span>
+            </div>
+            <button 
+              class="card-delete-btn" 
+              @click.stop.prevent="handleDelete(project)"
+              title="删除推演记录"
+            >×</button>
           </div>
         </div>
 
@@ -198,7 +205,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getSimulationHistory } from '../api/simulation'
+import { getSimulationHistory, deleteSimulation } from '../api/simulation'
 
 const router = useRouter()
 const route = useRoute()
@@ -455,6 +462,30 @@ const loadHistory = async () => {
   }
 }
 
+// 删除推演记录
+const handleDelete = async (project) => {
+  if (!confirm('确定要删除该推演记录吗？关联的报告也会被删除。')) {
+    return
+  }
+  
+  try {
+    const response = await deleteSimulation(project.simulation_id)
+    if (response.success) {
+      // 如果删除的是当前打开的弹窗项目，关闭弹窗
+      if (selectedProject.value && selectedProject.value.simulation_id === project.simulation_id) {
+        closeModal()
+      }
+      // 从列表中移除该项
+      projects.value = projects.value.filter(p => p.simulation_id !== project.simulation_id)
+    } else {
+      alert(response.error?.message || '删除失败')
+    }
+  } catch (error) {
+    console.error('删除推演记录失败:', error)
+    alert(error.message || '删除失败，请稍后重试')
+  }
+}
+
 // 初始化 IntersectionObserver
 const initObserver = () => {
   if (observer) {
@@ -702,6 +733,12 @@ onUnmounted(() => {
   font-size: 0.7rem;
 }
 
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .card-id {
   color: #6B7280;
   letter-spacing: 0.5px;
@@ -733,6 +770,32 @@ onUnmounted(() => {
 .status-icon.unavailable {
   color: #D1D5DB;
   opacity: 0.5;
+}
+
+/* 删除按钮 */
+.card-delete-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #9CA3AF;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+  padding: 0;
+  font-family: Arial, sans-serif;
+}
+
+.card-delete-btn:hover {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.1);
+  opacity: 1;
 }
 
 /* 轮数进度显示 */

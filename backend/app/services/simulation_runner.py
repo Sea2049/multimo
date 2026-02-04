@@ -1198,6 +1198,63 @@ class SimulationRunner:
             "errors": errors if errors else None
         }
     
+    @classmethod
+    def clear_simulation_from_memory(cls, simulation_id: str):
+        """
+        从内存中清除模拟相关的所有引用（不删除文件）
+        
+        用于删除模拟前清理内存状态，避免删除目录后内存仍持有引用
+        
+        Args:
+            simulation_id: 模拟ID
+        """
+        # 清理运行状态
+        if simulation_id in cls._run_states:
+            del cls._run_states[simulation_id]
+        
+        # 清理进程（如果存在）
+        if simulation_id in cls._processes:
+            process = cls._processes.pop(simulation_id)
+            # 注意：这里不终止进程，因为应该在调用此方法前已经停止
+            logger.debug(f"从内存移除进程引用: {simulation_id}")
+        
+        # 清理动作队列
+        if simulation_id in cls._action_queues:
+            del cls._action_queues[simulation_id]
+        
+        # 清理监控线程引用
+        if simulation_id in cls._monitor_threads:
+            del cls._monitor_threads[simulation_id]
+        
+        # 清理文件句柄
+        if simulation_id in cls._stdout_files:
+            file_handle = cls._stdout_files.pop(simulation_id)
+            try:
+                if file_handle:
+                    file_handle.close()
+            except Exception:
+                pass
+        
+        if simulation_id in cls._stderr_files:
+            file_handle = cls._stderr_files.pop(simulation_id)
+            try:
+                if file_handle:
+                    file_handle.close()
+            except Exception:
+                pass
+        
+        # 清理图谱记忆更新器引用
+        if simulation_id in cls._graph_memory_enabled:
+            enabled = cls._graph_memory_enabled.pop(simulation_id)
+            if enabled:
+                try:
+                    from ..services.zep_graph_memory_updater import ZepGraphMemoryManager
+                    ZepGraphMemoryManager.stop_updater(simulation_id)
+                except Exception as e:
+                    logger.warning(f"停止图谱记忆更新器失败: {simulation_id}, error={e}")
+        
+        logger.info(f"已从内存清除模拟引用: {simulation_id}")
+    
     # 防止重复清理的标志
     _cleanup_done = False
     

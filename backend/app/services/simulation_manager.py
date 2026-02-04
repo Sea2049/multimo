@@ -575,3 +575,53 @@ class SimulationManager:
                 f"   - 并行运行双平台: python {scripts_dir}/run_parallel_simulation.py --config {config_path}"
             )
         }
+    
+    def delete_simulation(self, simulation_id: str) -> None:
+        """
+        删除模拟记录
+        
+        流程：
+        1. 如果模拟正在运行，先停止
+        2. 清理 Runner 内存引用
+        3. 清理 Manager 内存缓存
+        4. 删除模拟目录
+        
+        Args:
+            simulation_id: 模拟ID
+            
+        Raises:
+            ValueError: 如果停止模拟失败
+        """
+        from ..services.simulation_runner import SimulationRunner, RunnerStatus
+        
+        # 1. 检查并停止正在运行的模拟
+        run_state = SimulationRunner.get_run_state(simulation_id)
+        if run_state and run_state.runner_status == RunnerStatus.RUNNING:
+            logger.info(f"模拟正在运行，先停止: {simulation_id}")
+            try:
+                SimulationRunner.stop_simulation(simulation_id)
+                # 等待一小段时间确保进程完全停止
+                import time
+                time.sleep(0.5)
+            except Exception as e:
+                logger.error(f"停止模拟失败: {simulation_id}, error={e}")
+                raise ValueError(f"无法停止正在运行的模拟: {simulation_id}")
+        
+        # 2. 清理 Runner 内存引用
+        SimulationRunner.clear_simulation_from_memory(simulation_id)
+        
+        # 3. 清理 Manager 内存缓存
+        with self._lock:
+            self._simulations.pop(simulation_id, None)
+        
+        # 4. 删除模拟目录
+        sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
+        if os.path.exists(sim_dir):
+            try:
+                shutil.rmtree(sim_dir)
+                logger.info(f"模拟目录已删除: {simulation_id}")
+            except Exception as e:
+                logger.error(f"删除模拟目录失败: {simulation_id}, error={e}")
+                raise
+        else:
+            logger.debug(f"模拟目录不存在，无需删除: {simulation_id}")

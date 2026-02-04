@@ -147,6 +147,14 @@ export const getSimulationHistory = (limit = 20) => {
 }
 
 /**
+ * 删除推演记录
+ * @param {string} simulationId
+ */
+export const deleteSimulation = (simulationId) => {
+  return requestWithRetry(() => service.delete(`/api/simulation/${simulationId}`), 3, 1000)
+}
+
+/**
  * 列出所有模拟
  * @param {Object} params - { project_id? }
  */
