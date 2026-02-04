@@ -230,10 +230,6 @@ class AppConfig(BaseSettings):
         if not self.DEBUG and not self.SECRET_KEY:
             errors.append("生产环境必须配置 SECRET_KEY")
         
-        # 生产环境 API Key 认证警告（不作为错误，但会记录）
-        if not self.DEBUG and not self.API_KEY_ENABLED:
-            errors.append("警告: 生产环境建议启用 API_KEY_ENABLED 以保护 API 端点")
-        
         return errors
     
     def get_llm_config(self) -> dict:
