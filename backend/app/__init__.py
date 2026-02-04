@@ -78,8 +78,7 @@ def create_app(config_override: dict = None) -> Flask:
         from app.services.auto_pilot_manager import AutoPilotManager
         auto_pilot_manager = AutoPilotManager()
         recovered_auto_pilot_tasks = auto_pilot_manager.recover_interrupted_tasks()
-        if recovered_auto_pilot_tasks:
-            logger.info(f"已恢复 {len(recovered_auto_pilot_tasks)} 个中断的自动模式任务")
+        # recover_interrupted_tasks() 内部已经记录了日志，这里不需要重复记录
     except Exception as e:
         logger.warning(f"自动模式任务恢复检查失败: {e}")
     

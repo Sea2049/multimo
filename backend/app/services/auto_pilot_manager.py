@@ -924,6 +924,8 @@ class AutoPilotManager:
         
         if recovered_tasks:
             logger.info(f"已恢复 {len(recovered_tasks)} 个中断的自动模式任务")
+        else:
+            logger.info("自动模式任务恢复检查完成，未发现需要恢复的任务")
         
         return recovered_tasks
     
