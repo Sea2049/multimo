@@ -5,6 +5,7 @@ Step2: Zep实体读取与过滤、OASIS模拟准备与运行（全程自动化�
 """
 
 import os
+import json
 import traceback
 from flask import request, jsonify, send_file, g
 
@@ -390,7 +391,9 @@ def prepare_simulation():
             "entity_types": ["Student", "PublicFigure"],  // 可选，指定实体类型
             "use_llm_for_profiles": true,                 // 可选，是否用LLM生成人设
             "parallel_profile_count": 5,                  // 可选，并行生成人设数量，默认5
-            "force_regenerate": false                     // 可选，强制重新生成，默认false
+            "force_regenerate": false,                    // 可选，强制重新生成，默认false
+            "auto_start": false,                          // 可选，准备完成后自动启动模拟，默认false
+            "auto_start_max_rounds": null                 // 可选，自动启动时的最大轮数，null表示使用配置的默认值
         }
     
     返回：
@@ -447,9 +450,31 @@ def prepare_simulation():
                 "error": f"模拟不存在: {simulation_id}"
             }), 404
         
+        # 获取自动启动配置
+        auto_start = data.get('auto_start', False)
+        auto_start_max_rounds = data.get('auto_start_max_rounds')
+        if auto_start_max_rounds is not None:
+            try:
+                auto_start_max_rounds = int(auto_start_max_rounds)
+                if auto_start_max_rounds <= 0:
+                    return jsonify({
+                        "success": False,
+                        "error": "auto_start_max_rounds 必须是正整数"
+                    }), 400
+            except (ValueError, TypeError):
+                return jsonify({
+                    "success": False,
+                    "error": "auto_start_max_rounds 必须是有效的整数"
+                }), 400
+        
+        # 设置自动启动配置
+        state.auto_start_enabled = auto_start
+        state.auto_start_max_rounds = auto_start_max_rounds
+        manager._save_simulation_state(state)
+        
         # 检查是否强制重新生成
         force_regenerate = data.get('force_regenerate', False)
-        logger.info(f"开始处理 /prepare 请求: simulation_id={simulation_id}, force_regenerate={force_regenerate}")
+        logger.info(f"开始处理 /prepare 请求: simulation_id={simulation_id}, force_regenerate={force_regenerate}, auto_start={auto_start}")
         
         # 检查是否已经准备完成（避免重复生成）
         if not force_regenerate:
@@ -617,6 +642,84 @@ def prepare_simulation():
                     task_id,
                     result=result_state.to_simple_dict()
                 )
+                
+                # 检查是否需要自动启动模拟
+                if result_state.auto_start_enabled:
+                    logger.info(f"准备完成，自动启动模拟: {simulation_id}")
+                    try:
+                        # 在后台线程中自动启动模拟
+                        def auto_start_simulation():
+                            import time
+                            # 等待一小段时间确保状态已保存
+                            time.sleep(2)
+                            
+                            try:
+                                from ..services.simulation_runner import SimulationRunner, RunnerStatus
+                                
+                                # 获取模拟状态
+                                current_state = manager.get_simulation(simulation_id)
+                                if not current_state:
+                                    logger.error(f"自动启动失败：模拟不存在 {simulation_id}")
+                                    return
+                                
+                                # 检查是否已准备好
+                                if current_state.status != SimulationStatus.READY:
+                                    logger.warning(f"自动启动跳过：模拟状态不是READY，当前状态={current_state.status}")
+                                    return
+                                
+                                # 检查是否已经在运行
+                                run_state = SimulationRunner.get_run_state(simulation_id)
+                                if run_state and run_state.runner_status in [RunnerStatus.RUNNING, RunnerStatus.STARTING]:
+                                    logger.info(f"模拟已在运行中，跳过自动启动: {simulation_id}")
+                                    return
+                                
+                                # 读取配置获取默认轮数
+                                max_rounds = current_state.auto_start_max_rounds
+                                if max_rounds is None:
+                                    # 尝试从配置文件读取
+                                    sim_dir = os.path.join(get_config().SIMULATION_DATA_DIR, simulation_id)
+                                    config_file = os.path.join(sim_dir, 'simulation_config.json')
+                                    if os.path.exists(config_file):
+                                        try:
+                                            with open(config_file, 'r', encoding='utf-8') as f:
+                                                config_data = json.load(f)
+                                                time_config = config_data.get('time_config', {})
+                                                if time_config:
+                                                    total_hours = time_config.get('total_simulation_hours', 0)
+                                                    minutes_per_round = time_config.get('minutes_per_round', 60)
+                                                    if total_hours and minutes_per_round:
+                                                        max_rounds = int((total_hours * 60) / minutes_per_round)
+                                                        logger.info(f"从配置读取默认轮数: {max_rounds}")
+                                        except Exception as e:
+                                            logger.warning(f"读取配置失败，使用默认值: {e}")
+                                
+                                # 启动模拟
+                                logger.info(f"自动启动模拟: {simulation_id}, max_rounds={max_rounds}")
+                                run_state = SimulationRunner.start_simulation(
+                                    simulation_id=simulation_id,
+                                    platform="parallel",
+                                    max_rounds=max_rounds,
+                                    enable_graph_memory_update=False,
+                                    resume=False
+                                )
+                                
+                                # 更新模拟状态
+                                current_state.status = SimulationStatus.RUNNING
+                                manager._save_simulation_state(current_state)
+                                
+                                logger.info(f"模拟自动启动成功: {simulation_id}, runner_status={run_state.runner_status}")
+                                
+                            except Exception as e:
+                                logger.error(f"自动启动模拟失败: {simulation_id}, error={str(e)}")
+                                import traceback
+                                logger.error(traceback.format_exc())
+                        
+                        # 启动自动启动线程
+                        auto_start_thread = threading.Thread(target=auto_start_simulation, daemon=True)
+                        auto_start_thread.start()
+                        
+                    except Exception as e:
+                        logger.error(f"创建自动启动线程失败: {str(e)}")
                 
             except Exception as e:
                 logger.error(f"准备模拟失败: {str(e)}")

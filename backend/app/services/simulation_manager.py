@@ -98,6 +98,12 @@ class SimulationState:
     # 自动驾驶完成时间
     auto_pilot_completed_at: Optional[str] = None
     
+    # ========== 自动启动相关字段 ==========
+    # 是否在准备完成后自动启动模拟
+    auto_start_enabled: bool = False
+    # 自动启动时的最大轮数（可选，None表示使用配置的默认值）
+    auto_start_max_rounds: Optional[int] = None
+    
     def to_dict(self) -> Dict[str, Any]:
         """完整状态字典（内部使用）"""
         return {
@@ -124,6 +130,9 @@ class SimulationState:
             "auto_pilot_progress": self.auto_pilot_progress,
             "auto_pilot_started_at": self.auto_pilot_started_at,
             "auto_pilot_completed_at": self.auto_pilot_completed_at,
+            # 自动启动相关字段
+            "auto_start_enabled": self.auto_start_enabled,
+            "auto_start_max_rounds": self.auto_start_max_rounds,
         }
     
     def to_simple_dict(self) -> Dict[str, Any]:
@@ -234,6 +243,9 @@ class SimulationManager:
                 auto_pilot_progress=data.get("auto_pilot_progress", 0),
                 auto_pilot_started_at=data.get("auto_pilot_started_at"),
                 auto_pilot_completed_at=data.get("auto_pilot_completed_at"),
+                # 自动启动相关字段
+                auto_start_enabled=data.get("auto_start_enabled", False),
+                auto_start_max_rounds=data.get("auto_start_max_rounds"),
             )
             
             self._simulations[simulation_id] = state
