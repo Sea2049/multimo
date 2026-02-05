@@ -13,7 +13,7 @@ import threading
 import os
 import json
 from datetime import datetime
-from flask import request, jsonify
+from flask import request, jsonify, g
 
 from .. import simulation_bp, get_error_response, make_error_response, ErrorCode
 from ..auth import require_api_key
@@ -326,14 +326,15 @@ def prepare_simulation():
         except Exception as e:
             logger.warning(f"同步获取实体数量失败（将在后台任务中重试）: {e}")
         
-        # 创建异步任务
+        # 创建异步任务（归属当前用户）
         task_manager = TaskManager()
         task_id = task_manager.create_task(
             task_type="simulation_prepare",
             metadata={
                 "simulation_id": simulation_id,
                 "project_id": state.project_id
-            }
+            },
+            user_id=g.current_user["id"],
         )
         
         # 更新模拟状态
@@ -472,7 +473,7 @@ def prepare_simulation():
 @simulation_bp.route('/prepare/status', methods=['POST'])
 def get_prepare_status():
     """
-    查询准备任务进度
+    查询准备任务进度（需校验归属）
     
     支持两种查询方式：
     1. 通过task_id查询正在进行的任务进度
@@ -493,8 +494,29 @@ def get_prepare_status():
         task_id = data.get('task_id')
         simulation_id = data.get('simulation_id')
         
-        # 如果提供了simulation_id，先检查是否已准备完成
+        # 如果提供了simulation_id，先校验归属
         if simulation_id:
+            from ...services.simulation_manager import SimulationManager
+            from ...models.project import ProjectManager
+            sim_manager = SimulationManager()
+            state = sim_manager.get_simulation(simulation_id)
+            if not state:
+                return jsonify({
+                    "success": False,
+                    "error": f"模拟不存在: {simulation_id}"
+                }), 404
+            project = ProjectManager.get_project(state.project_id)
+            if not project:
+                return jsonify({
+                    "success": False,
+                    "error": "项目不存在"
+                }), 404
+            if getattr(project, "user_id", None) != g.current_user["id"]:
+                return jsonify({
+                    "success": False,
+                    "error": "无权操作该模拟"
+                }), 403
+
             is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
             if is_prepared:
                 return jsonify({
@@ -552,6 +574,14 @@ def get_prepare_status():
                 "success": False,
                 "error": f"任务不存在: {task_id}"
             }), 404
+        
+        # 校验任务归属
+        task_user_id = getattr(task, "user_id", None) or (task.metadata or {}).get("user_id")
+        if task_user_id is not None and task_user_id != g.current_user["id"]:
+            return jsonify({
+                "success": False,
+                "error": "无权操作该任务"
+            }), 403
         
         task_dict = task.to_dict()
         task_dict["already_prepared"] = False

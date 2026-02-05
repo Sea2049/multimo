@@ -110,18 +110,20 @@ class ReportTaskWorker:
         graph_id: str,
         simulation_requirement: str,
         report_id: Optional[str] = None,
-        force_regenerate: bool = False
+        force_regenerate: bool = False,
+        user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         启动报告生成任务
-        
+
         Args:
             simulation_id: 模拟ID
             graph_id: 图谱ID
             simulation_requirement: 模拟需求
             report_id: 报告ID（可选，如果不传则自动生成）
             force_regenerate: 是否强制重新生成
-            
+            user_id: 归属用户 ID，用于数据隔离
+
         Returns:
             {
                 "task_id": "xxx",
@@ -156,7 +158,7 @@ class ReportTaskWorker:
             started_at=datetime.now().isoformat()
         )
         
-        # 创建任务
+        # 创建任务（归属当前用户）
         task_id = self.task_manager.create_task(
             task_type=self.TASK_TYPE,
             metadata={
@@ -164,7 +166,8 @@ class ReportTaskWorker:
                 "graph_id": graph_id,
                 "report_id": report_id,
                 "checkpoint": checkpoint.to_dict()
-            }
+            },
+            user_id=user_id,
         )
         
         # 启动工作进程

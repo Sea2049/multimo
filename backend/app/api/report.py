@@ -7,7 +7,7 @@ Report API路由
 import os
 import traceback
 import threading
-from flask import request, jsonify, send_file
+from flask import request, jsonify, send_file, g
 
 from . import report_bp
 from . import get_error_response, make_error_response, ErrorCode
@@ -142,7 +142,8 @@ def generate_report():
             simulation_id=simulation_id,
             graph_id=graph_id,
             simulation_requirement=simulation_requirement,
-            force_regenerate=force_regenerate
+            force_regenerate=force_regenerate,
+            user_id=g.current_user["id"],
         )
         
         return jsonify({
@@ -165,7 +166,7 @@ def generate_report():
 @report_bp.route('/generate/status', methods=['POST'])
 def get_generate_status():
     """
-    查询报告生成任务进度
+    查询报告生成任务进度（需校验归属）
     
     请求（JSON）：
         {
@@ -186,12 +187,35 @@ def get_generate_status():
     """
     try:
         data = request.get_json() or {}
-        
         task_id = data.get('task_id')
         simulation_id = data.get('simulation_id')
-        
-        # 如果提供了simulation_id，先检查是否已有完成的报告
+
+        # 如果提供了 simulation_id，先校验归属
         if simulation_id:
+            from ...services.simulation_manager import SimulationManager
+            from ...models.project import ProjectManager
+            sim_manager = SimulationManager()
+            state = sim_manager.get_simulation(simulation_id)
+            if not state:
+                return jsonify(get_error_response(
+                    error=f"模拟不存在: {simulation_id}",
+                    status_code=404,
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND
+                )), 404
+            project = ProjectManager.get_project(state.project_id)
+            if not project:
+                return jsonify(get_error_response(
+                    error="项目不存在",
+                    status_code=404,
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND
+                )), 404
+            if getattr(project, "user_id", None) != g.current_user["id"]:
+                return jsonify(get_error_response(
+                    error="无权操作该模拟",
+                    status_code=403,
+                    error_code=ErrorCode.FORBIDDEN
+                )), 403
+
             existing_report = ReportManager.get_report_by_simulation(simulation_id)
             if existing_report and existing_report.status == ReportStatus.COMPLETED:
                 return jsonify({
@@ -205,27 +229,33 @@ def get_generate_status():
                         "already_completed": True
                     }
                 })
-        
+
         if not task_id:
             return jsonify({
                 "success": False,
                 "error": "请提供 task_id 或 simulation_id"
             }), 400
-        
+
+        # 校验任务归属
         task_manager = TaskManager()
         task = task_manager.get_task(task_id)
-        
         if not task:
             return jsonify({
                 "success": False,
                 "error": f"任务不存在: {task_id}"
             }), 404
-        
+        task_user_id = getattr(task, "user_id", None) or (task.metadata or {}).get("user_id")
+        if task_user_id is not None and task_user_id != g.current_user["id"]:
+            return jsonify(get_error_response(
+                error="无权操作该任务",
+                status_code=403,
+                error_code=ErrorCode.FORBIDDEN
+            )), 403
+
         return jsonify({
             "success": True,
             "data": task.to_dict()
         })
-        
     except Exception as e:
         logger.error(f"查询任务状态失败: {str(e)}")
         return jsonify({
