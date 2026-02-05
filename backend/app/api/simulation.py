@@ -178,7 +178,8 @@ def create_simulation():
             "project_id": "proj_xxxx",      // 必填
             "graph_id": "multimo_xxxx",    // 可选，如不提供则从project获取
             "enable_twitter": true,          // 可选，默认true
-            "enable_reddit": true            // 可选，默认true
+            "enable_reddit": true,           // 可选，默认true
+            "auto_pilot_enabled": false      // 可选，启用后准备完成将自动启动 AutoPilot 全流程
         }
     
     返回：
@@ -232,6 +233,14 @@ def create_simulation():
             enable_twitter=data.get('enable_twitter', True),
             enable_reddit=data.get('enable_reddit', True),
         )
+        auto_pilot_enabled = data.get('auto_pilot_enabled', False)
+        if auto_pilot_enabled:
+            from ..services.auto_pilot_manager import AutoPilotManager, AutoPilotMode
+            ap_manager = AutoPilotManager()
+            ap_manager.set_mode(state.simulation_id, AutoPilotMode.AUTO)
+            state.auto_pilot_enabled = True
+            manager._save_simulation_state(state)
+            logger.info(f"创建模拟并启用自动驾驶: {state.simulation_id}")
         
         return jsonify({
             "success": True,
@@ -643,8 +652,39 @@ def prepare_simulation():
                     result=result_state.to_simple_dict()
                 )
                 
-                # 检查是否需要自动启动模拟
-                if result_state.auto_start_enabled:
+                # 检查是否需要自动启动 AutoPilot（优先于简单 auto_start）
+                if result_state.auto_pilot_enabled:
+                    logger.info(f"准备完成，自动启动 AutoPilot: {simulation_id}")
+                    try:
+                        def auto_start_autopilot():
+                            import time
+                            time.sleep(2)
+                            try:
+                                from ..services.auto_pilot_manager import AutoPilotManager, AutoPilotStatus
+                                ap_manager = AutoPilotManager()
+                                current_mode = ap_manager.get_mode(simulation_id)
+                                if current_mode.value != 'auto':
+                                    logger.warning(f"AutoPilot 模式未启用，跳过自动启动: {simulation_id}")
+                                    return
+                                ap_state = ap_manager.get_status(simulation_id)
+                                if ap_state.status == AutoPilotStatus.ACTIVE:
+                                    logger.info(f"AutoPilot 已在运行中，跳过自动启动: {simulation_id}")
+                                    return
+                                logger.info(f"自动启动 AutoPilot: {simulation_id}")
+                                ap_manager.start_auto_pilot(simulation_id, force=False)
+                                sim_state = manager.get_simulation(simulation_id)
+                                if sim_state:
+                                    sim_state.auto_pilot_started_at = ap_manager.get_status(simulation_id).started_at
+                                    manager._save_simulation_state(sim_state)
+                            except Exception as e:
+                                logger.error(f"自动启动 AutoPilot 失败: {simulation_id}, error={str(e)}")
+                                import traceback
+                                logger.error(traceback.format_exc())
+                        t = threading.Thread(target=auto_start_autopilot, daemon=True)
+                        t.start()
+                    except Exception as e:
+                        logger.error(f"创建自动启动 AutoPilot 线程失败: {str(e)}")
+                elif result_state.auto_start_enabled:
                     logger.info(f"准备完成，自动启动模拟: {simulation_id}")
                     try:
                         # 在后台线程中自动启动模拟

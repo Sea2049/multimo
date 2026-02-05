@@ -199,7 +199,8 @@ const props = defineProps({
   ontologyProgress: Object,
   buildProgress: Object,
   graphData: Object,
-  systemLogs: { type: Array, default: () => [] }
+  systemLogs: { type: Array, default: () => [] },
+  simulationMode: { type: String, default: 'manual' }
 })
 
 defineEmits(['next-step'])
@@ -221,8 +222,9 @@ const handleEnterEnvSetup = async () => {
     const res = await createSimulation({
       project_id: props.projectData.project_id,
       graph_id: props.projectData.graph_id,
-      enable_twitter: true,      
-      enable_reddit: true        
+      enable_twitter: true,
+      enable_reddit: true,
+      auto_pilot_enabled: props.simulationMode === 'auto'
     })
 
     if (res.success && res.data?.simulation_id) {
