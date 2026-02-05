@@ -86,7 +86,13 @@ def init_api(app):
     # 配置 CORS
     cors_config = config.get_cors_config()
     CORS(app, **cors_config)
-    
+
+    # 蓝图级统一鉴权：graph / simulation / report 下所有路由需登录
+    from app.api.decorators import user_auth_required_for_request
+    graph_bp.before_request(user_auth_required_for_request)
+    simulation_bp.before_request(user_auth_required_for_request)
+    report_bp.before_request(user_auth_required_for_request)
+
     # 注册蓝图
     app.register_blueprint(api_v1_bp)
     app.register_blueprint(simulation_bp)

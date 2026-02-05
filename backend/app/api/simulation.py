@@ -6,11 +6,13 @@ Step2: Zep实体读取与过滤、OASIS模拟准备与运行（全程自动化�
 
 import os
 import traceback
-from flask import request, jsonify, send_file
+from flask import request, jsonify, send_file, g
 
 from . import simulation_bp
 from . import get_error_response, make_error_response, ErrorCode
 from .auth import require_api_key
+from .decorators import require_simulation_owner
+from .decorators import require_simulation_owner
 from ..config_new import get_config
 from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
@@ -208,7 +210,13 @@ def create_simulation():
                 "success": False,
                 "error": f"项目不存在: {project_id}"
             }), 404
-        
+        if getattr(project, "user_id", None) != g.current_user["id"]:
+            return jsonify(get_error_response(
+                error="无权操作该项目",
+                status_code=403,
+                error_code=ErrorCode.FORBIDDEN
+            )), 403
+
         graph_id = data.get('graph_id') or project.graph_id
         if not graph_id:
             return jsonify({
@@ -356,6 +364,7 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
 
 @simulation_bp.route('/prepare', methods=['POST'])
 @require_api_key(permissions=["write"], signature_required=False)
+@require_simulation_owner('simulation_id')
 def prepare_simulation():
     """
     准备模拟环境（异步任务，LLM智能生成所有参数）
@@ -872,6 +881,7 @@ def get_simulation_history():
 
 
 @simulation_bp.route('/<simulation_id>', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation(simulation_id: str):
     """获取模拟状态"""
     try:
@@ -903,23 +913,28 @@ def get_simulation(simulation_id: str):
 @simulation_bp.route('/list', methods=['GET'])
 def list_simulations():
     """
-    列出所有模拟
-    
+    列出当前用户的模拟（仅返回项目归属为当前用户的模拟）
+
     Query参数：
-        project_id: 按项目ID过滤（可选）
+        project_id: 按项目ID过滤（可选，仅限本人项目）
     """
     try:
         project_id = request.args.get('project_id')
-        
+        user_project_ids = set(ProjectManager._get_storage().list_project_ids_by_user(g.current_user["id"]))
+        if project_id and project_id not in user_project_ids:
+            return jsonify({
+                "success": True,
+                "data": [],
+                "count": 0
+            })
         manager = SimulationManager()
         simulations = manager.list_simulations(project_id=project_id)
-        
+        simulations = [s for s in simulations if s.project_id in user_project_ids]
         return jsonify({
             "success": True,
             "data": [s.to_dict() for s in simulations],
             "count": len(simulations)
         })
-        
     except Exception as e:
         logger.error(f"列出模拟失败: {str(e)}")
         return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
@@ -984,6 +999,7 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
 
 
 @simulation_bp.route('/<simulation_id>/profiles', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_profiles(simulation_id: str):
     """
     获取模拟的Agent Profile
@@ -1018,6 +1034,7 @@ def get_simulation_profiles(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/profiles/realtime', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_profiles_realtime(simulation_id: str):
     """
     实时获取模拟的Agent Profile（用于在生成过程中实时查看进度）
@@ -1126,6 +1143,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/config/realtime', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_config_realtime(simulation_id: str):
     """
     实时获取模拟配置（用于在生成过程中实时查看进度）
@@ -1244,6 +1262,7 @@ def get_simulation_config_realtime(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/config', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_config(simulation_id: str):
     """
     获取模拟配置（LLM智能生成的完整配置）
@@ -1276,6 +1295,7 @@ def get_simulation_config(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/config/download', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def download_simulation_config(simulation_id: str):
     """下载模拟配置文件"""
     try:
@@ -1351,6 +1371,7 @@ def download_simulation_script(script_name: str):
 # ============== Profile生成接口（独立使用） ==============
 
 @simulation_bp.route('/generate-profiles', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def generate_profiles():
     """
     直接从图谱生成OASIS Agent Profile（不创建模拟）
@@ -1421,6 +1442,7 @@ def generate_profiles():
 # ============== 模拟运行控制接口 ==============
 
 @simulation_bp.route('/start', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def start_simulation():
     """
     开始运行模拟
@@ -1614,6 +1636,7 @@ def start_simulation():
 
 
 @simulation_bp.route('/stop', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def stop_simulation():
     """
     停止模拟
@@ -1717,6 +1740,7 @@ def stop_simulation():
 
 
 @simulation_bp.route('/<simulation_id>/resumable', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def check_resumable(simulation_id: str):
     """
     检查模拟是否可以恢复
@@ -1820,6 +1844,7 @@ def check_resumable(simulation_id: str):
 from ..services.export_service import ExportService
 
 @simulation_bp.route('/<simulation_id>/export', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def export_simulation_data(simulation_id: str):
     """
     导出模拟完整数据
@@ -1851,6 +1876,7 @@ def export_simulation_data(simulation_id: str):
         logger.error(f"导出数据失败: {str(e)}")
         return jsonify(make_error_response(e, 500, ErrorCode.INTERNAL_ERROR)), 500
 @simulation_bp.route('/<simulation_id>/run-status', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_run_status(simulation_id: str):
     """
     获取模拟运行实时状态（用于前端轮询）
@@ -1905,6 +1931,7 @@ def get_run_status(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/run-status/detail', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_run_status_detail(simulation_id: str):
     """
     获取模拟运行详细状态（包含所有动作）
@@ -2002,6 +2029,7 @@ def get_run_status_detail(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/actions', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_actions(simulation_id: str):
     """
     获取模拟中的Agent动作历史
@@ -2052,6 +2080,7 @@ def get_simulation_actions(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/timeline', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_timeline(simulation_id: str):
     """
     获取模拟时间线（按轮次汇总）
@@ -2088,6 +2117,7 @@ def get_simulation_timeline(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/agent-stats', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_agent_stats(simulation_id: str):
     """
     获取每个Agent的统计信息
@@ -2113,6 +2143,7 @@ def get_agent_stats(simulation_id: str):
 # ============== 数据库查询接口 ==============
 
 @simulation_bp.route('/<simulation_id>/posts', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_posts(simulation_id: str):
     """
     获取模拟中的帖子
@@ -2184,6 +2215,7 @@ def get_simulation_posts(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>/comments', methods=['GET'])
+@require_simulation_owner('simulation_id')
 def get_simulation_comments(simulation_id: str):
     """
     获取模拟中的评论（仅Reddit）
@@ -2254,6 +2286,7 @@ def get_simulation_comments(simulation_id: str):
 # ============== Interview 采访接口 ==============
 
 @simulation_bp.route('/interview', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def interview_agent():
     """
     采访单个Agent
@@ -2379,6 +2412,7 @@ def interview_agent():
 
 
 @simulation_bp.route('/interview/batch', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def interview_agents_batch():
     """
     批量采访多个Agent
@@ -2516,6 +2550,7 @@ def interview_agents_batch():
 
 
 @simulation_bp.route('/interview/all', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def interview_all_agents():
     """
     全局采访 - 使用相同问题采访所有Agent
@@ -2615,6 +2650,7 @@ def interview_all_agents():
 
 
 @simulation_bp.route('/interview/history', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def get_interview_history():
     """
     获取Interview历史记录
@@ -2683,6 +2719,7 @@ def get_interview_history():
 
 
 @simulation_bp.route('/env-status', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def get_env_status():
     """
     获取模拟环境状态
@@ -2744,6 +2781,7 @@ def get_env_status():
 
 
 @simulation_bp.route('/close-env', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def close_simulation_env():
     """
     关闭模拟环境
@@ -2812,6 +2850,7 @@ def close_simulation_env():
 # ============== 自动驾驶模式接口 ==============
 
 @simulation_bp.route('/auto-pilot/config', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def config_auto_pilot():
     """
     配置自动驾驶模式
@@ -2888,6 +2927,7 @@ def config_auto_pilot():
 
 
 @simulation_bp.route('/auto-pilot/start', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def start_auto_pilot():
     """
     启动自动驾驶
@@ -2985,6 +3025,7 @@ def start_auto_pilot():
 
 
 @simulation_bp.route('/auto-pilot/pause', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def pause_auto_pilot():
     """
     暂停自动驾驶
@@ -3041,6 +3082,7 @@ def pause_auto_pilot():
 
 
 @simulation_bp.route('/auto-pilot/resume', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def resume_auto_pilot():
     """
     恢复自动驾驶
@@ -3097,6 +3139,7 @@ def resume_auto_pilot():
 
 
 @simulation_bp.route('/auto-pilot/stop', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def stop_auto_pilot():
     """
     停止自动驾驶
@@ -3152,6 +3195,7 @@ def stop_auto_pilot():
 
 
 @simulation_bp.route('/auto-pilot/status', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def get_auto_pilot_status():
     """
     获取自动驾驶状态
@@ -3207,6 +3251,7 @@ def get_auto_pilot_status():
 
 
 @simulation_bp.route('/auto-pilot/reset', methods=['POST'])
+@require_simulation_owner('simulation_id')
 def reset_auto_pilot():
     """
     重置自动驾驶状态

@@ -31,13 +31,14 @@ class Task:
     status: TaskStatus
     created_at: datetime
     updated_at: datetime
-    progress: int = 0              # 总进度百分比 0-100
-    message: str = ""              # 状态消息
-    result: Optional[Dict] = None  # 任务结果
-    error: Optional[str] = None    # 错误信息
-    metadata: Dict = field(default_factory=dict)  # 额外元数据
-    progress_detail: Dict = field(default_factory=dict)  # 详细进度信息
-    
+    progress: int = 0
+    message: str = ""
+    result: Optional[Dict] = None
+    error: Optional[str] = None
+    metadata: Dict = field(default_factory=dict)
+    progress_detail: Dict = field(default_factory=dict)
+    user_id: Optional[int] = None  # 归属用户，用于数据隔离
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -52,6 +53,7 @@ class Task:
             "result": self.result,
             "error": self.error,
             "metadata": self.metadata,
+            "user_id": self.user_id,
         }
 
 
@@ -151,41 +153,45 @@ class TaskManager:
                 result=task_dict.get("result"),
                 error=task_dict.get("error"),
                 metadata=task_dict.get("metadata", {}),
-                progress_detail=task_dict.get("progress_detail", {})
+                progress_detail=task_dict.get("progress_detail", {}),
+                user_id=task_dict.get("user_id"),
             )
         except Exception as e:
             print(f"Error converting dict to Task: {e}")
             return None
     
-    def create_task(self, task_type: str, metadata: Optional[Dict] = None) -> str:
+    def create_task(
+        self,
+        task_type: str,
+        metadata: Optional[Dict] = None,
+        user_id: Optional[int] = None,
+    ) -> str:
         """
         创建新任务
-        
+
         Args:
             task_type: 任务类型
             metadata: 额外元数据
-            
+            user_id: 归属用户 ID，用于数据隔离
+
         Returns:
-            任务ID
+            任务 ID
         """
         task_id = str(uuid.uuid4())
         now = datetime.now()
-        
         task = Task(
             task_id=task_id,
             task_type=task_type,
             status=TaskStatus.PENDING,
             created_at=now,
             updated_at=now,
-            metadata=metadata or {}
+            metadata=metadata or {},
+            user_id=user_id,
         )
-        
         task_dict = self._task_to_dict(task)
-        
         with self._task_lock:
             self._cache[task_id] = task
             self._storage.store_task(task_dict)
-        
         return task_id
     
     def get_task(self, task_id: str) -> Optional[Task]:
@@ -269,22 +275,38 @@ class TaskManager:
             error=error
         )
     
-    def list_tasks(self, task_type: Optional[str] = None) -> list:
-        """列出任务"""
+    def list_tasks(
+        self,
+        task_type: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> list:
+        """列出任务。user_id 不为 None 时仅返回该用户的任务（从 DB 过滤）。"""
+        if user_id is not None:
+            task_dicts = self._storage.list_tasks(
+                task_type=task_type, user_id=user_id, limit=1000
+            )
+            out = []
+            for d in task_dicts:
+                t = self._dict_to_task(d)
+                if t:
+                    out.append(t.to_dict())
+            return out
         with self._task_lock:
             if task_type:
                 filtered_tasks = [
-                    t for t in self._cache.values() 
+                    t for t in self._cache.values()
                     if t.task_type == task_type
                 ]
             else:
                 filtered_tasks = list(self._cache.values())
-            
-            return [t.to_dict() for t in sorted(
-                filtered_tasks, 
-                key=lambda x: x.created_at, 
-                reverse=True
-            )]
+            return [
+                t.to_dict()
+                for t in sorted(
+                    filtered_tasks,
+                    key=lambda x: x.created_at,
+                    reverse=True,
+                )
+            ]
     
     def cleanup_old_tasks(self, max_age_hours: int = 24):
         """清理旧任务"""

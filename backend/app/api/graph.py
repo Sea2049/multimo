@@ -14,6 +14,8 @@ from flask import request, jsonify
 from . import graph_bp
 from . import get_error_response, make_error_response, ErrorCode
 from .auth import require_api_key
+from .decorators import require_project_owner, require_task_owner
+from flask import g
 from ..config_new import get_config
 from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
@@ -44,19 +46,18 @@ def allowed_file(filename: str) -> bool:
 # ============== 项目管理接口 ==============
 
 @graph_bp.route('/project/<project_id>', methods=['GET'])
+@require_project_owner('project_id')
 def get_project(project_id: str):
     """
-    获取项目详情
+    获取项目详情（仅项目所有者）
     """
     project = ProjectManager.get_project(project_id)
-    
     if not project:
         return jsonify(get_error_response(
             error=f"项目不存在: {project_id}",
             status_code=404,
             error_code=ErrorCode.RESOURCE_NOT_FOUND
         )), 404
-    
     return jsonify({
         "success": True,
         "data": project.to_dict()
@@ -66,11 +67,11 @@ def get_project(project_id: str):
 @graph_bp.route('/project/list', methods=['GET'])
 def list_projects():
     """
-    列出所有项目
+    列出当前用户的项目
     """
     limit = request.args.get('limit', 50, type=int)
-    projects = ProjectManager.list_projects(limit=limit)
-    
+    user_id = g.current_user["id"]
+    projects = ProjectManager.list_projects(limit=limit, user_id=user_id)
     return jsonify({
         "success": True,
         "data": [p.to_dict() for p in projects],
@@ -79,19 +80,18 @@ def list_projects():
 
 
 @graph_bp.route('/project/<project_id>', methods=['DELETE'])
+@require_project_owner('project_id')
 def delete_project(project_id: str):
     """
-    删除项目
+    删除项目（仅项目所有者）
     """
     success = ProjectManager.delete_project(project_id)
-    
     if not success:
         return jsonify(get_error_response(
             error=f"项目不存在或删除失败: {project_id}",
             status_code=404,
             error_code=ErrorCode.RESOURCE_NOT_FOUND
         )), 404
-    
     return jsonify({
         "success": True,
         "message": f"项目已删除: {project_id}"
@@ -99,12 +99,12 @@ def delete_project(project_id: str):
 
 
 @graph_bp.route('/project/<project_id>/reset', methods=['POST'])
+@require_project_owner('project_id')
 def reset_project(project_id: str):
     """
-    重置项目状态（用于重新构建图谱）
+    重置项目状态（仅项目所有者）
     """
     project = ProjectManager.get_project(project_id)
-    
     if not project:
         return jsonify(get_error_response(
             error=f"项目不存在: {project_id}",
@@ -131,15 +131,12 @@ def reset_project(project_id: str):
 
 
 @graph_bp.route('/project/<project_id>/repair', methods=['POST'])
+@require_project_owner('project_id')
 def repair_project(project_id: str):
     """
-    修复项目状态
-    
-    当项目有 graph_id 但状态为 failed 时，尝试验证图谱是否存在，
-    如果存在则修复状态为 graph_completed
+    修复项目状态（仅项目所有者）
     """
     project = ProjectManager.get_project(project_id)
-    
     if not project:
         return jsonify(get_error_response(
             error=f"项目不存在: {project_id}",
@@ -255,7 +252,8 @@ def generate_ontology():
                 error_code=ErrorCode.INVALID_INPUT
             )), 400
         
-        project = ProjectManager.create_project(name=project_name)
+        user_id = g.current_user["id"]
+        project = ProjectManager.create_project(name=project_name, user_id=user_id)
         project.simulation_requirement = simulation_requirement
         logger.info(f"创建项目: {project.project_id}")
         
@@ -349,6 +347,7 @@ def generate_ontology():
 # ============== 接口2：构建图谱 ==============
 
 @graph_bp.route('/build', methods=['POST'])
+@require_project_owner('project_id')
 def build_graph():
     """
     接口2：根据project_id构建图谱
@@ -453,9 +452,12 @@ def build_graph():
                 "error": "未找到本体定义"
             }), 400
         
-        # 创建异步任务
+        # 创建异步任务（归属当前用户）
         task_manager = TaskManager()
-        task_id = task_manager.create_task(f"构建图谱: {graph_name}")
+        task_id = task_manager.create_task(
+            f"构建图谱: {graph_name}",
+            user_id=g.current_user["id"],
+        )
         logger.info(f"创建图谱构建任务: task_id={task_id}, project_id={project_id}")
         
         # 更新项目状态
@@ -619,18 +621,17 @@ def build_graph():
 # ============== 任务查询接口 ==============
 
 @graph_bp.route('/task/<task_id>', methods=['GET'])
+@require_task_owner('task_id')
 def get_task(task_id: str):
     """
-    查询任务状态
+    查询任务状态（仅任务所有者）
     """
     task = TaskManager().get_task(task_id)
-    
     if not task:
         return jsonify({
             "success": False,
             "error": f"任务不存在: {task_id}"
         }), 404
-    
     return jsonify({
         "success": True,
         "data": task.to_dict()
@@ -640,30 +641,61 @@ def get_task(task_id: str):
 @graph_bp.route('/tasks', methods=['GET'])
 def list_tasks():
     """
-    列出所有任务
+    列出当前用户的任务
     """
-    tasks = TaskManager().list_tasks()
-    
+    tasks = TaskManager().list_tasks(user_id=g.current_user["id"])
     return jsonify({
         "success": True,
-        "data": [t.to_dict() for t in tasks],
+        "data": tasks,
         "count": len(tasks)
     })
 
 
 # ============== 图谱数据接口 ==============
 
+def _resolve_graph_owner_project(graph_id: str):
+    """
+    解析 graph_id 对应的项目并校验当前用户是否为所有者。
+    返回 (project, None) 成功，或 (None, (response, status_code)) 失败。
+    """
+    from ..services.simulation_manager import SimulationManager
+    sim_manager = SimulationManager()
+    sim = sim_manager.get_simulation(graph_id)
+    if sim:
+        project = ProjectManager.get_project(sim.project_id)
+    else:
+        project = None
+        for pid in ProjectManager._get_storage().list_project_ids_by_user(g.current_user["id"], limit=500):
+            p = ProjectManager.get_project(pid)
+            if p and getattr(p, "graph_id", None) == graph_id:
+                project = p
+                break
+    if not project:
+        return None, (jsonify(get_error_response(
+            error=f"图谱不存在或无权访问: {graph_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404)
+    if getattr(project, "user_id", None) != g.current_user["id"]:
+        return None, (jsonify(get_error_response(
+            error="无权访问该图谱",
+            status_code=403,
+            error_code=ErrorCode.FORBIDDEN
+        )), 403)
+    return project, None
+
+
 @graph_bp.route('/data/<graph_id>', methods=['GET'])
 def get_graph_data(graph_id: str):
     """
-    获取图谱数据(节点和边)
+    获取图谱数据（仅项目/模拟所有者）
     """
     try:
+        _, err = _resolve_graph_owner_project(graph_id)
+        if err is not None:
+            return err
         config = get_config()
-        
-        # Zep 需要专用的 API Key，不传参数让 GraphBuilderService 自动选择
         builder = GraphBuilderService()
-        
         graph_data = builder.get_graph_data(graph_id)
         
         return jsonify({
@@ -695,10 +727,12 @@ def get_graph_data(graph_id: str):
 @graph_bp.route('/delete/<graph_id>', methods=['DELETE'])
 def delete_graph(graph_id: str):
     """
-    删除Zep图谱
+    删除 Zep 图谱（仅项目/模拟所有者）
     """
     try:
-        # Zep 需要专用的 API Key，不传参数让 GraphBuilderService 自动选择
+        _, err = _resolve_graph_owner_project(graph_id)
+        if err is not None:
+            return err
         builder = GraphBuilderService()
         builder.delete_graph(graph_id)
         

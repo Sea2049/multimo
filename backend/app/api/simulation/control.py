@@ -13,6 +13,7 @@ import os
 from flask import request, jsonify
 
 from .. import simulation_bp, get_error_response, make_error_response, ErrorCode
+from ..decorators import require_simulation_owner
 from ...config_new import get_config
 from ...services.simulation_manager import SimulationManager, SimulationStatus
 from ...services.simulation_runner import SimulationRunner, RunnerStatus
@@ -376,6 +377,7 @@ def check_resumable(simulation_id: str):
 
 
 @simulation_bp.route('/<simulation_id>', methods=['DELETE'])
+@require_simulation_owner('simulation_id')
 def delete_simulation(simulation_id: str):
     """
     删除推演记录

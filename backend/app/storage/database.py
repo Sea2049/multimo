@@ -185,7 +185,32 @@ class SQLiteStorage(DatabaseStorage):
             CREATE INDEX IF NOT EXISTS idx_invitation_codes_active 
             ON invitation_codes(is_active)
         """)
-        
+
+        # ============= 项目归属表（用户数据隔离） =============
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                project_id TEXT PRIMARY KEY,
+                user_id INTEGER,
+                name TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'created',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)
+        """)
+
+        # tasks 表增加 user_id 列（迁移：已存在则跳过）
+        try:
+            cursor = conn.execute("PRAGMA table_info(tasks)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'user_id' not in columns:
+                conn.execute("ALTER TABLE tasks ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
+
         conn.commit()
     
     def store(self, key: str, value: Any) -> bool:
@@ -370,13 +395,13 @@ class SQLiteStorage(DatabaseStorage):
                 if isinstance(value, dict):
                     return json.dumps(value, ensure_ascii=False, default=str)
                 return value
-            
+
             with self.get_connection() as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO tasks 
-                    (task_id, task_type, status, created_at, updated_at, 
-                     progress, message, result, error, metadata, progress_detail)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (task_id, task_type, status, created_at, updated_at,
+                     progress, message, result, error, metadata, progress_detail, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     task_data.get("task_id"),
                     task_data.get("task_type"),
@@ -388,7 +413,8 @@ class SQLiteStorage(DatabaseStorage):
                     serialize_value(task_data.get("result")),
                     task_data.get("error"),
                     serialize_value(task_data.get("metadata")),
-                    serialize_value(task_data.get("progress_detail"))
+                    serialize_value(task_data.get("progress_detail")),
+                    task_data.get("user_id"),
                 ))
                 conn.commit()
                 return True
@@ -413,33 +439,30 @@ class SQLiteStorage(DatabaseStorage):
             print(f"Error retrieving task from database: {e}")
             return None
     
-    def list_tasks(self, task_type: Optional[str] = None, 
+    def list_tasks(self, task_type: Optional[str] = None,
                    status: Optional[str] = None,
+                   user_id: Optional[int] = None,
                    limit: int = 100) -> List[Dict[str, Any]]:
-        """列出任务"""
+        """列出任务。user_id 不为 None 时仅返回该用户的任务。"""
         try:
             results = []
-            
             with self.get_connection() as conn:
                 query = "SELECT * FROM tasks WHERE 1=1"
                 params = []
-                
                 if task_type:
                     query += " AND task_type = ?"
                     params.append(task_type)
-                
                 if status:
                     query += " AND status = ?"
                     params.append(status)
-                
+                if user_id is not None:
+                    query += " AND (user_id IS NULL OR user_id = ?)"
+                    params.append(user_id)
                 query += " ORDER BY created_at DESC LIMIT ?"
                 params.append(limit)
-                
                 cursor = conn.execute(query, params)
-                
                 for row in cursor.fetchall():
                     results.append(dict(row))
-            
             return results
         except Exception as e:
             print(f"Error listing tasks from database: {e}")
@@ -545,7 +568,91 @@ class SQLiteStorage(DatabaseStorage):
         except Exception as e:
             print(f"Error cleaning up tasks in database: {e}")
             return 0
-    
+
+    # ============= 项目归属方法（用户数据隔离） =============
+
+    def insert_project_meta(
+        self,
+        project_id: str,
+        user_id: Optional[int],
+        name: str = "",
+        status: str = "created",
+        created_at: Optional[str] = None,
+        updated_at: Optional[str] = None,
+    ) -> bool:
+        """写入项目元数据（归属用户）。"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO projects
+                    (project_id, user_id, name, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+                """, (project_id, user_id, name, status, created_at, updated_at))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error inserting project meta: {e}")
+            return False
+
+    def get_project_user_id(self, project_id: str) -> Optional[int]:
+        """获取项目归属用户 ID，不存在返回 None。"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT user_id FROM projects WHERE project_id = ?",
+                    (project_id,),
+                )
+                row = cursor.fetchone()
+                if row and row["user_id"] is not None:
+                    return int(row["user_id"])
+                return None
+        except Exception as e:
+            print(f"Error getting project user_id: {e}")
+            return None
+
+    def list_project_ids_by_user(self, user_id: int, limit: int = 500) -> List[str]:
+        """按用户列出项目 ID（用于数据隔离）。"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    "SELECT project_id FROM projects WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+                    (user_id, limit),
+                )
+                return [row["project_id"] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error listing project ids by user: {e}")
+            return []
+
+    def update_project_meta(self, project_id: str, **kwargs) -> bool:
+        """更新项目元数据。允许字段: name, status, updated_at。"""
+        allowed = {"name", "status", "updated_at"}
+        if not kwargs or not set(kwargs.keys()) <= allowed:
+            return False
+        try:
+            with self.get_connection() as conn:
+                set_parts = [f"{k} = ?" for k in kwargs]
+                values = list(kwargs.values()) + [project_id]
+                conn.execute(
+                    f"UPDATE projects SET {', '.join(set_parts)} WHERE project_id = ?",
+                    values,
+                )
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating project meta: {e}")
+            return False
+
+    def delete_project_meta(self, project_id: str) -> bool:
+        """删除项目元数据记录。"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error deleting project meta: {e}")
+            return False
+
     # ============= 用户管理方法 =============
     
     def create_user(self, username: str, email: str, password_hash: str, 

@@ -140,10 +140,219 @@ def require_user_auth(func: Callable) -> Callable:
         }
         
         logger.debug(f"用户认证成功: user_id={user_id}, username={user['username']}")
-        
+
         return func(*args, **kwargs)
     
     return wrapper
+
+
+def ensure_user_auth():
+    """
+    执行 JWT 用户认证逻辑，成功时设置 g.current_user，失败时返回错误响应。
+    用于蓝图 before_request，可与 require_user_auth 复用同一逻辑。
+
+    Returns:
+        None 表示认证成功；否则返回 (response, status_code) 用于 return。
+    """
+    import jwt
+    from ..config_new import get_config
+    from ..storage.database import SQLiteStorage
+
+    config = get_config()
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return jsonify(get_error_response(
+            error="未提供认证信息",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    parts = auth_header.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return jsonify(get_error_response(
+            error="无效的认证格式，请使用 Bearer Token",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    token = parts[1]
+    try:
+        payload = jwt.decode(
+            token,
+            config.JWT_SECRET_KEY,
+            algorithms=[config.JWT_ALGORITHM]
+        )
+    except jwt.ExpiredSignatureError:
+        return jsonify(get_error_response(
+            error="登录已过期，请重新登录",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    except jwt.InvalidTokenError:
+        return jsonify(get_error_response(
+            error="无效的认证令牌",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    user_id = payload.get("user_id")
+    if not user_id:
+        return jsonify(get_error_response(
+            error="无效的认证令牌",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    storage = SQLiteStorage(config.TASKS_DATABASE_PATH)
+    user = storage.get_user_by_id(user_id)
+    if not user:
+        return jsonify(get_error_response(
+            error="用户不存在",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    if not user.get("is_active"):
+        return jsonify(get_error_response(
+            error="用户账户已被禁用",
+            status_code=401,
+            error_code=ErrorCode.UNAUTHORIZED
+        )), 401
+    g.current_user = {
+        "id": user["id"],
+        "username": user["username"],
+        "email": user["email"],
+        "role": user["role"],
+        "is_active": user["is_active"]
+    }
+    return None
+
+
+def user_auth_required_for_request():
+    """
+    蓝图 before_request 用：要求已登录，未登录返回 401。
+    用于 graph_bp、simulation_bp、report_bp。
+    """
+    return ensure_user_auth()
+
+
+def require_project_owner(project_id_param: str = "project_id"):
+    """
+    校验当前用户为项目所有者。依赖 require_user_auth 已执行（或蓝图级鉴权）。
+    project_id_param: 从 kwargs 或 request 中取 project_id 的参数名。
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            from ..models.project import ProjectManager
+            project_id = kwargs.get(project_id_param)
+            if not project_id and request.is_json:
+                project_id = (request.get_json(silent=True) or {}).get(project_id_param)
+            if not project_id:
+                return jsonify(get_error_response(
+                    error="缺少项目 ID",
+                    status_code=400,
+                    error_code=ErrorCode.INVALID_INPUT
+                )), 400
+            project = ProjectManager.get_project(project_id)
+            if not project:
+                return jsonify(get_error_response(
+                    error=f"项目不存在: {project_id}",
+                    status_code=404,
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND
+                )), 404
+            project_user_id = getattr(project, "user_id", None) or (project.to_dict() if hasattr(project, "to_dict") else {}).get("user_id")
+            if project_user_id is None:
+                return jsonify(get_error_response(
+                    error="项目归属未知",
+                    status_code=403,
+                    error_code=ErrorCode.FORBIDDEN
+                )), 403
+            if project_user_id != g.current_user["id"]:
+                return jsonify(get_error_response(
+                    error="无权操作该项目",
+                    status_code=403,
+                    error_code=ErrorCode.FORBIDDEN
+                )), 403
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def require_simulation_owner(simulation_id_param: str = "simulation_id"):
+    """
+    校验当前用户为模拟所有者（通过 simulation.project_id -> project.user_id）。
+    依赖 require_user_auth 或蓝图级鉴权已执行。
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            from ..models.project import ProjectManager
+            from ..services.simulation_manager import SimulationManager
+            sim_id = kwargs.get(simulation_id_param)
+            if not sim_id and request.is_json:
+                sim_id = (request.get_json(silent=True) or {}).get(simulation_id_param)
+            if not sim_id:
+                return jsonify(get_error_response(
+                    error="缺少模拟 ID",
+                    status_code=400,
+                    error_code=ErrorCode.INVALID_INPUT
+                )), 400
+            manager = SimulationManager()
+            state = manager.get_simulation(sim_id)
+            if not state:
+                return jsonify(get_error_response(
+                    error=f"模拟不存在: {sim_id}",
+                    status_code=404,
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND
+                )), 404
+            project = ProjectManager.get_project(state.project_id)
+            if not project:
+                return jsonify(get_error_response(
+                    error="项目不存在",
+                    status_code=404,
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND
+                )), 404
+            if getattr(project, "user_id", None) != g.current_user["id"]:
+                return jsonify(get_error_response(
+                    error="无权操作该模拟",
+                    status_code=403,
+                    error_code=ErrorCode.FORBIDDEN
+                )), 403
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def require_task_owner(task_id_param: str = "task_id"):
+    """
+    校验当前用户为任务所有者。依赖 require_user_auth 已执行。
+    task_id_param: 从 kwargs 取 task_id 的参数名（如 URL 中的 task_id）。
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            from ..models.task import TaskManager
+            task_id = kwargs.get(task_id_param)
+            if not task_id:
+                return jsonify(get_error_response(
+                    error="缺少任务 ID",
+                    status_code=400,
+                    error_code=ErrorCode.INVALID_INPUT
+                )), 400
+            task_mgr = TaskManager()
+            task = task_mgr.get_task(task_id)
+            if not task:
+                return jsonify(get_error_response(
+                    error=f"任务不存在: {task_id}",
+                    status_code=404,
+                    error_code=ErrorCode.RESOURCE_NOT_FOUND
+                )), 404
+            task_user_id = getattr(task, "user_id", None) or (task.metadata or {}).get("user_id")
+            if task_user_id is not None and task_user_id != g.current_user["id"]:
+                return jsonify(get_error_response(
+                    error="无权操作该任务",
+                    status_code=403,
+                    error_code=ErrorCode.FORBIDDEN
+                )), 403
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 def require_admin(func: Callable) -> Callable:

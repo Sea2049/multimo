@@ -2,8 +2,9 @@
 
 import json
 import os
-from flask import request, jsonify
+from flask import request, jsonify, g
 from app.api import api_v1_bp, get_response, get_error_response
+from app.api.decorators import require_user_auth, require_simulation_owner
 from app.utils import get_logger, validate_api_request
 from app.modules.report import ReportGenerator
 from app.services.simulation_manager import SimulationManager
@@ -149,6 +150,8 @@ def _convert_action_type(action_type: str) -> str:
 
 
 @api_v1_bp.route("/report/generate", methods=["POST"])
+@require_user_auth
+@require_simulation_owner("simulation_id")
 def generate_report():
     """生成报告"""
     try:
@@ -231,6 +234,8 @@ def generate_report():
 
 
 @api_v1_bp.route("/report/<simulation_id>", methods=["GET"])
+@require_user_auth
+@require_simulation_owner("simulation_id")
 def get_report(simulation_id: str):
     """获取报告"""
     try:
@@ -344,6 +349,8 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
 
 
 @api_v1_bp.route("/report/<simulation_id>/download", methods=["GET"])
+@require_user_auth
+@require_simulation_owner("simulation_id")
 def download_report(simulation_id: str):
     """下载报告文件"""
     try:
@@ -409,58 +416,51 @@ def download_report(simulation_id: str):
         logger.error(f"下载报告失败: {e}", exc_info=True)
         return jsonify(get_error_response(str(e), 500)), 500
 @api_v1_bp.route("/report/list", methods=["GET"])
+@require_user_auth
 def list_reports():
-    """列出所有报告"""
+    """列出当前用户的报告（仅归属为当前用户项目的模拟下的报告）"""
     try:
         logger.info("接收到列出报告请求")
-        
+        user_project_ids = set(ProjectManager._get_storage().list_project_ids_by_user(g.current_user["id"]))
         sim_manager = SimulationManager()
         reports = []
-        
-        # 遍历所有模拟目录
         simulations_dir = sim_manager.SIMULATION_DATA_DIR
         if not os.path.exists(simulations_dir):
             return jsonify(get_response({
                 "reports": [],
                 "message": "没有报告"
             })), 200
-        
+
         for sim_id in os.listdir(simulations_dir):
             report_dir = os.path.join(simulations_dir, sim_id, "report")
             if not os.path.isdir(report_dir):
                 continue
-            
             report_file = os.path.join(report_dir, "report.json")
             if not os.path.exists(report_file):
                 continue
-            
+            simulation_state = sim_manager.get_simulation(sim_id)
+            if not simulation_state or simulation_state.project_id not in user_project_ids:
+                continue
             try:
                 with open(report_file, 'r', encoding='utf-8') as f:
                     report = json.load(f)
-                
-                # 获取模拟状态
-                simulation_state = sim_manager.get_simulation(sim_id)
-                
                 reports.append({
                     "simulation_id": sim_id,
                     "report_id": report.get("report_id"),
                     "query": report.get("query"),
                     "generated_at": report.get("generated_at"),
                     "generation_time": report.get("generation_time"),
-                    "project_id": simulation_state.project_id if simulation_state else None
+                    "project_id": simulation_state.project_id,
                 })
             except Exception as e:
                 logger.warning(f"读取报告失败: {sim_id}, 错误: {e}")
-        
-        # 按生成时间倒序
+
         reports.sort(key=lambda x: x.get("generated_at", ""), reverse=True)
-        
         return jsonify(get_response({
             "reports": reports,
             "count": len(reports),
             "message": "报告列表获取成功"
         })), 200
-        
     except Exception as e:
         logger.error(f"列出报告失败: {e}", exc_info=True)
         return jsonify(get_error_response(str(e), 500)), 500

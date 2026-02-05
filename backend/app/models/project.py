@@ -31,7 +31,8 @@ class Project:
     status: ProjectStatus
     created_at: str
     updated_at: str
-    
+    user_id: Optional[int] = None  # 归属用户，用于数据隔离
+
     # 文件信息
     files: List[Dict[str, str]] = field(default_factory=list)  # [{filename, path, size}]
     total_text_length: int = 0
@@ -60,6 +61,7 @@ class Project:
             "status": self.status.value if isinstance(self.status, ProjectStatus) else self.status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "user_id": self.user_id,
             "files": self.files,
             "total_text_length": self.total_text_length,
             "ontology": self.ontology,
@@ -85,6 +87,7 @@ class Project:
             status=status,
             created_at=data.get('created_at', ''),
             updated_at=data.get('updated_at', ''),
+            user_id=data.get('user_id'),
             files=data.get('files', []),
             total_text_length=data.get('total_text_length', 0),
             ontology=data.get('ontology'),
@@ -99,11 +102,16 @@ class Project:
 
 
 class ProjectManager:
-    """项目管理器 - 负责项目的持久化存储和检索"""
-    
+    """项目管理器 - 负责项目的持久化存储和检索（含用户归属）"""
+
     # 项目存储根目录
     PROJECTS_DIR = os.path.join(get_config().UPLOAD_FOLDER, 'projects')
-    
+
+    @classmethod
+    def _get_storage(cls):
+        from ..storage.database import SQLiteStorage
+        return SQLiteStorage(get_config().TASKS_DATABASE_PATH)
+
     @classmethod
     def _ensure_projects_dir(cls):
         """确保项目目录存在"""
@@ -130,111 +138,138 @@ class ProjectManager:
         return os.path.join(cls._get_project_dir(project_id), 'extracted_text.txt')
     
     @classmethod
-    def create_project(cls, name: str = "Unnamed Project") -> Project:
+    def create_project(cls, name: str = "Unnamed Project", user_id: Optional[int] = None) -> Project:
         """
         创建新项目
-        
+
         Args:
             name: 项目名称
-            
+            user_id: 归属用户 ID，用于数据隔离
+
         Returns:
-            新创建的Project对象
+            新创建的 Project 对象
         """
         cls._ensure_projects_dir()
-        
+
         project_id = f"proj_{uuid.uuid4().hex[:12]}"
         now = datetime.now().isoformat()
-        
+
         project = Project(
             project_id=project_id,
             name=name,
             status=ProjectStatus.CREATED,
             created_at=now,
-            updated_at=now
+            updated_at=now,
+            user_id=user_id,
         )
-        
-        # 创建项目目录结构
+
         project_dir = cls._get_project_dir(project_id)
         files_dir = cls._get_project_files_dir(project_id)
         os.makedirs(project_dir, exist_ok=True)
         os.makedirs(files_dir, exist_ok=True)
-        
-        # 保存项目元数据
+
         cls.save_project(project)
-        
+        if user_id is not None:
+            cls._get_storage().insert_project_meta(
+                project_id=project_id,
+                user_id=user_id,
+                name=name,
+                status=ProjectStatus.CREATED.value,
+                created_at=now,
+                updated_at=now,
+            )
         return project
     
     @classmethod
     def save_project(cls, project: Project) -> None:
-        """保存项目元数据"""
+        """保存项目元数据（文件 + DB 中的 name/status）"""
         project.updated_at = datetime.now().isoformat()
         meta_path = cls._get_project_meta_path(project.project_id)
-        
         with open(meta_path, 'w', encoding='utf-8') as f:
             json.dump(project.to_dict(), f, ensure_ascii=False, indent=2)
+        if project.user_id is not None:
+            cls._get_storage().insert_project_meta(
+                project_id=project.project_id,
+                user_id=project.user_id,
+                name=project.name,
+                status=project.status.value if hasattr(project.status, 'value') else str(project.status),
+                created_at=project.created_at,
+                updated_at=project.updated_at,
+            )
     
     @classmethod
     def get_project(cls, project_id: str) -> Optional[Project]:
         """
-        获取项目
-        
+        获取项目（含 DB 中的 user_id 归属）
+
         Args:
             project_id: 项目ID
-            
+
         Returns:
-            Project对象，如果不存在返回None
+            Project 对象，不存在返回 None
         """
         meta_path = cls._get_project_meta_path(project_id)
-        
         if not os.path.exists(meta_path):
             return None
-        
         with open(meta_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
-        return Project.from_dict(data)
+        project = Project.from_dict(data)
+        uid = cls._get_storage().get_project_user_id(project_id)
+        if uid is not None:
+            project.user_id = uid
+        return project
     
     @classmethod
-    def list_projects(cls, limit: int = 50) -> List[Project]:
+    def list_projects(cls, limit: int = 50, user_id: Optional[int] = None) -> List[Project]:
         """
-        列出所有项目
-        
+        列出项目。传入 user_id 时仅返回该用户的项目（数据隔离）。
+
         Args:
             limit: 返回数量限制
-            
+            user_id: 归属用户 ID；为 None 时从 DB 有归属的项目目录列表（兼容迁移期）
+
         Returns:
             项目列表，按创建时间倒序
         """
         cls._ensure_projects_dir()
-        
+        if user_id is not None:
+            project_ids = cls._get_storage().list_project_ids_by_user(user_id, limit=limit)
+            projects = []
+            for project_id in project_ids:
+                proj = cls.get_project(project_id)
+                if proj:
+                    projects.append(proj)
+            projects.sort(key=lambda p: p.created_at, reverse=True)
+            return projects[:limit]
         projects = []
         for project_id in os.listdir(cls.PROJECTS_DIR):
+            if not os.path.isdir(cls._get_project_dir(project_id)):
+                continue
             project = cls.get_project(project_id)
             if project:
                 projects.append(project)
-        
-        # 按创建时间倒序排序
         projects.sort(key=lambda p: p.created_at, reverse=True)
-        
         return projects[:limit]
     
     @classmethod
     def delete_project(cls, project_id: str) -> bool:
         """
-        删除项目及其所有文件
-        
-        Args:
-            project_id: 项目ID
-            
-        Returns:
-            是否删除成功
+        删除项目及其所有文件，并删除 DB 中的归属记录。
+        级联删除：先删除该项目下的所有模拟目录及报告，再删除项目目录。
         """
+        from ..services.simulation_manager import SimulationManager
+        sim_manager = SimulationManager()
+        for state in sim_manager.list_simulations(project_id=project_id):
+            try:
+                sim_manager.delete_simulation(state.simulation_id)
+            except Exception:
+                pass
         project_dir = cls._get_project_dir(project_id)
-        
         if not os.path.exists(project_dir):
+            cls._get_storage().delete_project_meta(project_id)
             return False
-        
         shutil.rmtree(project_dir)
+        cls._get_storage().delete_project_meta(project_id)
         return True
     
     @classmethod
