@@ -36,9 +36,9 @@
         </div>
         
         <div class="hero-right">
-          <!-- Logo 区域 -->
+          <!-- Logo 区域：图谱风格动态 Logo -->
           <div class="logo-container">
-            <img src="../assets/logo/multimo-logo.png" alt="Multimo Logo" class="hero-logo" />
+            <GraphLogo class="hero-logo" />
           </div>
           
           <button class="scroll-down-btn" @click="scrollToBottom" aria-label="滚动到底部">
@@ -305,6 +305,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
+import GraphLogo from '../components/GraphLogo.vue'
 import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
@@ -617,7 +618,7 @@ const startSimulation = () => {
   opacity: 0.85;
   mix-blend-mode: multiply;
   filter: contrast(0.95) brightness(1.05);
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 .hero-logo:hover {
