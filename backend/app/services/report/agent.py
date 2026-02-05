@@ -23,6 +23,40 @@ from .models import ReportStatus, ReportSection, ReportOutline, Report
 
 logger = get_logger('multimo.report.agent')
 
+# 报告正文去 AI 套路词：后处理用黑名单与替换表
+AI_PHRASES_REPLACEMENT = {
+    "首先，": "",
+    "其次，": "",
+    "再次，": "",
+    "最后，": "",
+    "首先 ": "",
+    "其次 ": "",
+    "再次 ": "",
+    "最后 ": "",
+}
+AI_PHRASES_BLACKLIST = [
+    "综上所述，", "综上所述。", "总体而言，", "总体而言。",
+    "值得注意的是，", "值得注意的是。", "深入探讨", "不难发现，", "不难发现。",
+    "可以说，", "可以说。", "在一定程度上，", "从某种意义上说，",
+    "毋庸置疑，", "显而易见，", "众所周知，", "从……来看，",
+    "多维角度", "全面分析", "深度解读",
+]
+
+def _reduce_ai_phrases(text: str) -> str:
+    """去除章节正文中的套路化 AI 用语，不破坏 Markdown 结构。"""
+    if not text or not text.strip():
+        return text
+    out = text
+    for phrase, replacement in AI_PHRASES_REPLACEMENT.items():
+        out = out.replace(phrase, replacement)
+    for phrase in AI_PHRASES_BLACKLIST:
+        out = out.replace(phrase, "")
+    out = re.sub(r"[ \t]+", " ", out)
+    out = re.sub(r"\n[ \t]+", "\n", out)
+    out = re.sub(r"[ \t]+\n", "\n", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip() if out != text else out
+
 
 class ReportAgent:
     """
@@ -445,6 +479,10 @@ class ReportAgent:
     ]
 }
 
+【标题与摘要文风】
+- 章节标题和报告摘要避免使用：深度剖析、多维解读、全面解析、值得关注、值得注意的是、深入探讨、综上所述、从……来看 等套路化表述。
+- 使用具体、信息量大的表述，例如直接点出预测结论或现象，而非"分析""解读"等空泛词。
+
 注意：sections数组最少2个，最多5个元素！"""
 
         user_prompt = f"""【预测场景设定】
@@ -501,6 +539,13 @@ class ReportAgent:
                 summary=response.get("summary", ""),
                 sections=sections
             )
+            # 大纲后处理：去除标题与摘要中的套路化表述
+            outline.title = _reduce_ai_phrases(outline.title)
+            outline.summary = _reduce_ai_phrases(outline.summary)
+            for sec in outline.sections:
+                sec.title = _reduce_ai_phrases(sec.title)
+                for sub in sec.subsections:
+                    sub.title = _reduce_ai_phrases(sub.title)
             
             if progress_callback:
                 progress_callback("planning", 100, "大纲规划完成")
@@ -676,6 +721,14 @@ class ReportAgent:
 完整流程：你输出 Thought+Action → 系统返回 Observation → 你再输出 Thought+Action → ... → 最后输出 Final Answer
 
 ═══════════════════════════════════════════════════════════════
+【文风与用语 - 减轻套路感】
+═══════════════════════════════════════════════════════════════
+- 文风：像内部简报或咨询报告，信息密度高、少用空话。避免泛泛总结腔和"作文式"套话。
+- 禁用或慎用以下表述，请改用更具体、直接的写法：
+  首先、其次、再次、最后、综上所述、总体而言、值得注意的是、深入探讨、从……来看、多维角度、全面分析、深度解读、不难发现、可以说、在一定程度上、从某种意义上、毋庸置疑、显而易见、众所周知
+- 段落开头避免千篇一律的"本段/本节分析……""从模拟结果可以看出……"；可改为直接陈述发现或引用数据/原文。
+
+═══════════════════════════════════════════════════════════════
 【章节内容要求】
 ═══════════════════════════════════════════════════════════════
 
@@ -820,6 +873,7 @@ class ReportAgent:
                 
                 # 提取最终答案
                 final_answer = response.split("Final Answer:")[-1].strip()
+                final_answer = _reduce_ai_phrases(final_answer)
                 logger.info(f"章节 {section.title} 生成完成（工具调用: {tool_calls_count}次）")
                 
                 # 记录章节内容生成完成日志（注意：这只是内容完成，不代表整个章节完成）
@@ -976,6 +1030,7 @@ class ReportAgent:
             final_answer = response.split("Final Answer:")[-1].strip()
         else:
             final_answer = response
+        final_answer = _reduce_ai_phrases(final_answer)
         
         # 记录章节内容生成完成日志（注意：这只是内容完成，不代表整个章节完成）
         is_subsection = section_index >= 100
