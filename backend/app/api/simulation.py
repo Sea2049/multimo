@@ -919,6 +919,7 @@ def get_simulation_history():
     获取历史模拟列表（带项目详情）
     
     用于首页历史项目展示，返回包含项目名称、描述等丰富信息的模拟列表
+    仅返回当前用户拥有的项目对应的模拟（数据隔离）
     
     Query参数：
         limit: 返回数量限制（默认20）
@@ -951,8 +952,17 @@ def get_simulation_history():
     try:
         limit = request.args.get('limit', 20, type=int)
         
+        # 获取当前用户的项目ID列表（数据隔离）
+        user_project_ids = set(ProjectManager._get_storage().list_project_ids_by_user(g.current_user["id"]))
+        
         manager = SimulationManager()
-        simulations = manager.list_simulations()[:limit]
+        simulations = manager.list_simulations()
+        
+        # 过滤：只保留属于当前用户项目的模拟
+        simulations = [s for s in simulations if s.project_id in user_project_ids]
+        
+        # 应用数量限制
+        simulations = simulations[:limit]
         
         # 增强模拟数据，只从 Simulation 文件读取
         enriched_simulations = []

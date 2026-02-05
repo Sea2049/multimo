@@ -203,28 +203,78 @@ class TestSimulationHistoryAPI:
     """模拟历史 API 测试"""
 
     @patch('app.services.simulation_manager.SimulationManager.list_simulations')
-    def test_get_history_empty(self, mock_list_sims, client):
+    @patch('app.models.project.ProjectManager._get_storage')
+    def test_get_history_empty(self, mock_storage, mock_list_sims, client):
         """测试空历史列表"""
         mock_list_sims.return_value = []
+        mock_storage_instance = MagicMock()
+        mock_storage_instance.list_project_ids_by_user.return_value = []
+        mock_storage.return_value = mock_storage_instance
 
-        response = client.get('/api/simulation/history')
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert data['success'] == True
-            assert data['data'] == []
+        # Mock 用户认证上下文
+        with patch('flask.g') as mock_g:
+            mock_g.current_user = {"id": 1}
+            response = client.get('/api/simulation/history',
+                                 headers={'Authorization': 'Bearer test_token'})
+            if response.status_code == 200:
+                data = json.loads(response.data)
+                assert data['success'] == True
+                assert data['data'] == []
 
     @patch('app.services.simulation_manager.SimulationManager.list_simulations')
-    def test_get_history_with_data(self, mock_list_sims, client, sample_simulation_data):
+    @patch('app.models.project.ProjectManager._get_storage')
+    def test_get_history_with_data(self, mock_storage, mock_list_sims, client, sample_simulation_data):
         """测试有数据的历史列表"""
         mock_sim = MagicMock()
         mock_sim.to_dict.return_value = sample_simulation_data
+        mock_sim.project_id = "proj_test_001"
         mock_list_sims.return_value = [mock_sim]
+        
+        mock_storage_instance = MagicMock()
+        mock_storage_instance.list_project_ids_by_user.return_value = ["proj_test_001"]
+        mock_storage.return_value = mock_storage_instance
 
-        response = client.get('/api/simulation/history')
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert data['success'] == True
-            assert len(data['data']) == 1
+        # Mock 用户认证上下文
+        with patch('flask.g') as mock_g:
+            mock_g.current_user = {"id": 1}
+            response = client.get('/api/simulation/history',
+                                 headers={'Authorization': 'Bearer test_token'})
+            if response.status_code == 200:
+                data = json.loads(response.data)
+                assert data['success'] == True
+                assert len(data['data']) == 1
+
+    @patch('app.services.simulation_manager.SimulationManager.list_simulations')
+    @patch('app.models.project.ProjectManager._get_storage')
+    def test_get_history_user_isolation(self, mock_storage, mock_list_sims, client, sample_simulation_data):
+        """测试用户数据隔离：用户只能看到自己的模拟"""
+        # 创建两个模拟，属于不同项目
+        mock_sim_user1 = MagicMock()
+        mock_sim_user1.to_dict.return_value = {**sample_simulation_data, "simulation_id": "sim_user1"}
+        mock_sim_user1.project_id = "proj_user1"
+        
+        mock_sim_user2 = MagicMock()
+        mock_sim_user2.to_dict.return_value = {**sample_simulation_data, "simulation_id": "sim_user2"}
+        mock_sim_user2.project_id = "proj_user2"
+        
+        mock_list_sims.return_value = [mock_sim_user1, mock_sim_user2]
+        
+        # 模拟用户1只能看到自己的项目
+        mock_storage_instance = MagicMock()
+        mock_storage_instance.list_project_ids_by_user.return_value = ["proj_user1"]
+        mock_storage.return_value = mock_storage_instance
+
+        # Mock 用户认证上下文（用户1）
+        with patch('flask.g') as mock_g:
+            mock_g.current_user = {"id": 1}
+            response = client.get('/api/simulation/history',
+                                 headers={'Authorization': 'Bearer test_token'})
+            if response.status_code == 200:
+                data = json.loads(response.data)
+                assert data['success'] == True
+                # 应该只返回用户1的模拟
+                assert len(data['data']) == 1
+                assert data['data'][0]['simulation_id'] == "sim_user1"
 
 
 class TestSimulationLogsAPI:
