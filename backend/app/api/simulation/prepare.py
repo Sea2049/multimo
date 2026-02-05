@@ -530,9 +530,33 @@ def get_prepare_status():
                         "prepare_info": prepare_info
                     }
                 })
+
+        # 如果没有提供 task_id，尝试通过 simulation_id 查找任务
+        task_manager = TaskManager()
+        task = None
         
-        # 如果没有task_id，返回错误
-        if not task_id:
+        if not task_id and simulation_id:
+            # 查找该 simulation 对应的准备任务
+            all_tasks = task_manager.list_tasks(task_type="simulation_prepare", user_id=g.current_user["id"])
+            for t_dict in all_tasks:
+                t_metadata = t_dict.get("metadata", {})
+                if isinstance(t_metadata, str):
+                    try:
+                        import json
+                        t_metadata = json.loads(t_metadata)
+                    except:
+                        t_metadata = {}
+                if t_metadata.get("simulation_id") == simulation_id:
+                    # 找到对应的任务，检查状态
+                    task_obj = task_manager.get_task(t_dict.get("task_id"))
+                    if task_obj:
+                        # 只返回进行中的任务（pending 或 processing）
+                        if task_obj.status in [TaskStatus.PENDING, TaskStatus.PROCESSING]:
+                            task = task_obj
+                            break
+                        # 如果任务已完成或失败，继续查找是否有其他进行中的任务
+        
+        if not task_id and not task:
             if simulation_id:
                 return jsonify({
                     "success": True,
@@ -548,32 +572,32 @@ def get_prepare_status():
                 "success": False,
                 "error": "请提供 task_id 或 simulation_id"
             }), 400
-        
-        task_manager = TaskManager()
-        task = task_manager.get_task(task_id)
-        
-        if not task:
-            # 任务不存在，但如果有simulation_id，检查是否已准备完成
-            if simulation_id:
-                is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
-                if is_prepared:
-                    return jsonify({
-                        "success": True,
-                        "data": {
-                            "simulation_id": simulation_id,
-                            "task_id": task_id,
-                            "status": "ready",
-                            "progress": 100,
-                            "message": "任务已完成（准备工作已存在）",
-                            "already_prepared": True,
-                            "prepare_info": prepare_info
-                        }
-                    })
-            
-            return jsonify({
-                "success": False,
-                "error": f"任务不存在: {task_id}"
-            }), 404
+
+        # 如果提供了 task_id，获取任务
+        if task_id and not task:
+            task = task_manager.get_task(task_id)
+            if not task:
+                # 任务不存在，但如果有simulation_id，检查是否已准备完成
+                if simulation_id:
+                    is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
+                    if is_prepared:
+                        return jsonify({
+                            "success": True,
+                            "data": {
+                                "simulation_id": simulation_id,
+                                "task_id": task_id,
+                                "status": "ready",
+                                "progress": 100,
+                                "message": "任务已完成（准备工作已存在）",
+                                "already_prepared": True,
+                                "prepare_info": prepare_info
+                            }
+                        })
+                
+                return jsonify({
+                    "success": False,
+                    "error": f"任务不存在: {task_id}"
+                }), 404
         
         # 校验任务归属
         task_user_id = getattr(task, "user_id", None) or (task.metadata or {}).get("user_id")
