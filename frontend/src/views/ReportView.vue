@@ -148,7 +148,7 @@ import GraphPanel from '../components/GraphPanel.vue'
 import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData, addDocuments, getTaskStatus } from '../api/graph'
 import { getSimulation } from '../api/simulation'
-import { getReport } from '../api/report'
+import { getReport, getReportStatus } from '../api/report'
 
 const route = useRoute()
 const router = useRouter()
@@ -372,6 +372,20 @@ const loadReportData = async () => {
       const reportData = reportRes.data
       simulationId.value = reportData.simulation_id
       
+      // 如果报告状态是 generating，检查任务状态
+      if (reportData.status === 'generating' && simulationId.value) {
+        try {
+          const statusRes = await getReportStatus({ simulation_id: simulationId.value })
+          if (statusRes.success && statusRes.data) {
+            const taskData = statusRes.data
+            addLog(`发现进行中的报告生成任务: ${taskData.task_id}, 状态: ${taskData.status}`)
+            // 任务状态会通过 Step4Report 组件的轮询机制自动更新
+          }
+        } catch (err) {
+          console.warn('查询任务状态失败:', err)
+        }
+      }
+      
       if (simulationId.value) {
         // 获取 simulation 信息
         const simRes = await getSimulation(simulationId.value)
@@ -394,6 +408,8 @@ const loadReportData = async () => {
         }
       }
     } else {
+      // 如果报告不存在，尝试通过 URL 参数或其他方式获取 simulation_id
+      // 这里可能需要从路由或其他地方获取 simulation_id
       addLog(`获取报告信息失败: ${reportRes.error || '未知错误'}`)
     }
   } catch (err) {
