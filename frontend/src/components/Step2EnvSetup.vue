@@ -433,10 +433,18 @@ const loadPreparedData = async () => {
         addLog('配置生成中，开始轮询等待...')
         startConfigPolling()
       }
+    } else {
+      // 如果配置接口返回失败，但模拟已准备完成，仍然设置为完成状态
+      addLog('配置数据加载失败，但模拟环境已准备完成')
+      phase.value = 4
+      emit('update-status', 'completed')
     }
   } catch (err) {
     addLog(`加载配置失败: ${err.message}`)
-    emit('update-status', 'error')
+    // 即使配置加载失败，如果模拟已准备完成，仍然设置为完成状态
+    addLog('但模拟环境已准备完成，可以开始模拟')
+    phase.value = 4
+    emit('update-status', 'completed')
   }
 }
 
