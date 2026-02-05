@@ -280,6 +280,12 @@ OASIS 框架采用 [Apache 2.0 License](LICENSE-OASIS) 许可证。
 
 ## 📝 更新日志
 
+### v2.72 (2026-02-05)
+
+**版本固化：**
+- 🎉 正式发布 v2.72 版本
+- 🔧 部署脚本兼容性：server-deploy.sh 使用 bash 显式调用 deploy.sh（prod/staging/all）
+
 ### v2.71 (2026-02-05)
 
 **版本固化：**

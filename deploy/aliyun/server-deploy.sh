@@ -109,18 +109,18 @@ case $ENV in
     prod|production)
         check_env_file ".env.production" ".env.production.example"
         log_info "部署 Production 环境..."
-        ./deploy.sh prod
+        bash deploy.sh prod
         ;;
     staging|test)
         check_env_file ".env.staging" ".env.staging.example"
         log_info "部署 Staging 环境..."
-        ./deploy.sh staging
+        bash deploy.sh staging
         ;;
     all)
         check_env_file ".env.production" ".env.production.example"
         check_env_file ".env.staging" ".env.staging.example"
         log_info "部署所有环境..."
-        ./deploy.sh all
+        bash deploy.sh all
         ;;
     *)
         echo "用法: sudo bash server-deploy.sh [prod|staging|all]"

@@ -636,6 +636,15 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
+### v2.72 (2026-02-05)
+
+**版本固化：**
+- 🎉 正式发布 v2.72 版本
+- 🔧 部署脚本兼容性改进
+
+**部署改进：**
+- 🔧 `deploy/aliyun/server-deploy.sh` 使用 `bash deploy.sh` 替代 `./deploy.sh` 调用，提升在无执行权限或不同 shell 环境下的兼容性（prod/staging/all）
+
 ### v2.71 (2026-02-05)
 
 **版本固化：**
