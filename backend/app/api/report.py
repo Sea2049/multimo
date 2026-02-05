@@ -5,6 +5,7 @@ Report API路由
 """
 
 import os
+import json
 import traceback
 import threading
 from flask import request, jsonify, send_file, g
@@ -230,20 +231,50 @@ def get_generate_status():
                     }
                 })
 
-        if not task_id:
+        # 如果没有提供 task_id，尝试通过 simulation_id 查找任务
+        task_manager = TaskManager()
+        if not task_id and simulation_id:
+            # 查找该 simulation 对应的报告生成任务
+            all_tasks = task_manager.list_tasks(task_type="report_generate", user_id=g.current_user["id"])
+            task = None
+            for t_dict in all_tasks:
+                t_metadata = t_dict.get("metadata", {})
+                if isinstance(t_metadata, str):
+                    try:
+                        t_metadata = json.loads(t_metadata)
+                    except:
+                        t_metadata = {}
+                if t_metadata.get("simulation_id") == simulation_id:
+                    # 找到对应的任务，检查状态
+                    task_obj = task_manager.get_task(t_dict.get("task_id"))
+                    if task_obj:
+                        # 只返回进行中的任务（pending 或 processing）
+                        if task_obj.status in [TaskStatus.PENDING, TaskStatus.PROCESSING]:
+                            task = task_obj
+                            break
+                        # 如果任务已完成或失败，继续查找是否有其他进行中的任务
+            if not task:
+                return jsonify({
+                    "success": False,
+                    "error": "未找到进行中的报告生成任务"
+                }), 404
+
+        if not task_id and not task:
             return jsonify({
                 "success": False,
                 "error": "请提供 task_id 或 simulation_id"
             }), 400
 
+        # 如果提供了 task_id，获取任务
+        if task_id and not task:
+            task = task_manager.get_task(task_id)
+            if not task:
+                return jsonify({
+                    "success": False,
+                    "error": f"任务不存在: {task_id}"
+                }), 404
+
         # 校验任务归属
-        task_manager = TaskManager()
-        task = task_manager.get_task(task_id)
-        if not task:
-            return jsonify({
-                "success": False,
-                "error": f"任务不存在: {task_id}"
-            }), 404
         task_user_id = getattr(task, "user_id", None) or (task.metadata or {}).get("user_id")
         if task_user_id is not None and task_user_id != g.current_user["id"]:
             return jsonify(get_error_response(
