@@ -335,11 +335,19 @@ backend/app/services/
 - 本体验证
 
 **backend/app/services/report_agent.py**
+- 向后兼容入口，从 report 子包重新导出
 - 基于 LLM 的报告智能体
 - 分析模拟数据
 - 生成结构化预测报告
 - 提供丰富的工具集
 - 支持多轮反思和优化
+
+**backend/app/services/report/**（v2.71 模块化拆分）
+- `logger.py` - ReportLogger + 线程锁
+- `models.py` - ReportStatus, ReportSection, ReportOutline, Report
+- `agent.py` - ReportAgent 类
+- `manager.py` - ReportManager 类
+- `__init__.py` - 统一导出
 
 **backend/app/services/simulation_config_generator.py**
 - 生成模拟配置文件
@@ -405,26 +413,37 @@ backend/app/services/
   - `cancel_task()` - 取消任务
 - `get_report_task_worker()` - 全局单例获取函数
 
-#### 2.1.4.1 报告服务模块 (backend/app/services/report/)（新增）
+#### 2.1.4.1 报告服务模块 (backend/app/services/report/)（v2.71 模块化扩展）
 
 ```
 backend/app/services/report/
-├── __init__.py             # 报告服务模块初始化
+├── __init__.py             # 报告服务模块初始化，统一导出
 ├── logger.py               # 报告日志服务
-└── models.py               # 报告数据模型
+├── models.py               # 报告数据模型
+├── agent.py                # ReportAgent 类（v2.71 拆分）
+└── manager.py              # ReportManager 类（v2.71 拆分）
 ```
 
-**backend/app/services/report/logger.py**（新增）
+**backend/app/services/report/logger.py**
 - `ReportLogger` 类：报告日志记录器
 - 支持结构化日志输出
 - 支持日志级别控制
 - 日志文件管理
+- 线程锁保护
 
-**backend/app/services/report/models.py**（新增）
-- 报告相关的数据模型定义
+**backend/app/services/report/models.py**
+- 报告相关的数据模型定义（ReportStatus, ReportSection, ReportOutline, Report）
 - 报告状态枚举
 - 报告元数据结构
 - 报告内容模型
+
+**backend/app/services/report/agent.py**（v2.71 新增）
+- `ReportAgent` 类：基于 LLM 的报告智能体
+- 分析模拟数据、生成结构化预测报告
+- 提供工具集与多轮反思
+
+**backend/app/services/report/manager.py**（v2.71 新增）
+- `ReportManager` 类：报告生成流程管理
 
 #### 2.1.5 功能模块层 (backend/app/modules/)
 
@@ -563,7 +582,7 @@ backend/app/storage/
 **backend/app/storage/database.py**
 - 数据库操作封装
 - SQLite 数据库管理
-- 数据库连接池
+- 数据库连接池（v2.71 新增 threading.local 线程本地存储）
 - 数据库迁移支持
 
 #### 2.1.8 工具函数层 (backend/app/utils/)
@@ -998,10 +1017,25 @@ frontend/src/components/
 - 图谱预览
 
 **frontend/src/components/Step2EnvSetup.vue**
-- 环境搭建界面
+- 环境搭建主协调组件（v2.71 重构）
 - 配置模拟参数
 - 生成智能体人设
 - 平台选择
+- 集成 env-setup 子组件
+
+**frontend/src/components/env-setup/**（v2.71 新增）
+- `StepInstanceInit.vue` - 模拟实例初始化 (Step 01)
+- `StepAgentProfiles.vue` - Agent 人设生成 (Step 02)
+- `StepSimulationConfig.vue` - 双平台模拟配置 (Step 03)
+- `StepActionOrchestration.vue` - 初始激活编排 (Step 04)
+- `StepAutoPilotConfig.vue` - 准备完成/轮数配置 (Step 05)
+- `ProfileDetailModal.vue` - 人设详情模态框
+- `index.js` - 子组件统一导出
+
+**frontend/src/components/GraphLogo.vue**（v2.71 新增）
+- D3 力导向图风格动态 Logo
+- 20 节点静态数据、低饱和度灰蓝配色
+- 用于首页 hero 区域替换静态图片
 
 **frontend/src/components/Step3Simulation.vue**
 - 模拟运行界面
@@ -1290,6 +1324,33 @@ pytest-cov>=4.0.0         # 代码覆盖率
 - 避免代码重复
 
 ## 7. 更新记录
+
+### v2.71 (2026-02-05)
+
+**版本固化：**
+- 🎉 正式发布 v2.71 版本
+- 🎨 UI 精简与体验优化
+- 🏗️ 模块化重构与安全增强
+
+**代码目录新增：**
+- `frontend/src/components/GraphLogo.vue` - 图谱风格动态 Logo
+- `frontend/src/components/env-setup/` - Step2EnvSetup 拆分的 6 个子组件
+- `backend/app/services/report/agent.py` - ReportAgent 类
+- `backend/app/services/report/manager.py` - ReportManager 类
+
+**代码目录更新：**
+- `report_agent.py` - 从 report 子包重新导出
+- `services/report/` - 扩展为 logger/models/agent/manager 模块化结构
+- `storage/database.py` - 线程安全连接池（threading.local）
+- `utils/validators.py` - python-magic MIME 检测，扫描范围 8KB→64KB
+- `views/ReportView.vue` - 移除「返回模拟/日志/导出全部」
+- `views/InteractionView.vue` - 新增「返回报告」、移除「导出全部」
+
+**修复与优化：**
+- 图谱构建失败处理优化、新增 /repair API
+- Auto-pilot 后台任务恢复改进
+- Nginx staging 容错、路由顺序调整
+- Node.js 升级至 20 支持 Vite 7.x
 
 ### v2.70 (2026-02-02)
 

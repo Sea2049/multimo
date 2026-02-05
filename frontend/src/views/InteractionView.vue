@@ -21,6 +21,12 @@
       </div>
 
       <div class="header-right">
+        <button v-if="currentReportId" class="nav-btn" @click="goToReport" title="返回报告页">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          <span class="btn-text">返回报告</span>
+        </button>
         <button v-if="simulationId" class="export-btn secondary" @click="handleExportReport" title="导出报告 Markdown">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -28,14 +34,6 @@
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
           <span class="btn-text">导出报告</span>
-        </button>
-        <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据（含图谱）">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span class="btn-text">导出全部</span>
         </button>
         <div class="step-divider"></div>
         <div class="workflow-step">
@@ -84,7 +82,7 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step5Interaction from '../components/Step5Interaction.vue'
 import { getProject, getGraphData } from '../api/graph'
-import { getSimulation, exportSimulationData } from '../api/simulation'
+import { getSimulation } from '../api/simulation'
 import { getReport } from '../api/report'
 
 const route = useRoute()
@@ -154,17 +152,18 @@ const toggleMaximize = (target) => {
   }
 }
 
+// --- Navigation ---
+const goToReport = () => {
+  if (currentReportId.value) {
+    router.push({ name: 'Report', params: { reportId: currentReportId.value } })
+  }
+}
+
 // --- Export Methods ---
 const handleExportReport = () => {
   if (!simulationId.value) return
   const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const url = `${baseUrl}/api/v1/report/${simulationId.value}/download?format=markdown`
-  window.open(url, '_blank')
-}
-
-const handleFullExport = () => {
-  if (!simulationId.value) return
-  const url = exportSimulationData(simulationId.value)
   window.open(url, '_blank')
 }
 
@@ -317,6 +316,26 @@ onMounted(() => {
   min-width: 0;
 }
 
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #E0E0E0;
+  background: #FFF;
+  color: #333;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover {
+  background: #F5F5F5;
+  border-color: #CCC;
+}
+
 .export-btn {
   display: flex;
   align-items: center;
@@ -408,6 +427,7 @@ onMounted(() => {
     display: none;
   }
   
+  .nav-btn,
   .export-btn {
     padding: 8px;
     min-width: 36px;

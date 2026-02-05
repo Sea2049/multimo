@@ -21,23 +21,6 @@
       </div>
 
       <div class="header-right">
-        <button v-if="simulationId" class="nav-btn" @click="goToSimulationView" title="查看模拟过程">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          <span class="btn-text">返回模拟</span>
-        </button>
-        <button v-if="simulationId" class="nav-btn" @click="toggleSimulationLogs" title="查看模拟日志">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-            <line x1="10" y1="9" x2="8" y2="9"></line>
-          </svg>
-          <span class="btn-text">{{ showSimulationLogs ? '隐藏日志' : '日志' }}</span>
-        </button>
-        <div class="step-divider hide-narrow"></div>
         <div class="workflow-step">
           <span class="step-num">Step 4/5</span>
           <span class="step-name btn-text">报告生成</span>
@@ -59,14 +42,6 @@
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
           <span class="btn-text">导出报告</span>
-        </button>
-        <button v-if="simulationId" class="export-btn" @click="handleFullExport" title="导出全量数据（含图谱）">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span class="btn-text">导出全部</span>
         </button>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
@@ -172,7 +147,7 @@ import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
 import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData, addDocuments, getTaskStatus } from '../api/graph'
-import { getSimulation, exportSimulationData, getSimulationActions } from '../api/simulation'
+import { getSimulation } from '../api/simulation'
 import { getReport } from '../api/report'
 
 const route = useRoute()
@@ -202,10 +177,6 @@ const isDragOver = ref(false)
 const uploading = ref(false)
 const uploadStatus = ref(null)
 const fileInput = ref(null)
-
-// 模拟日志相关
-const showSimulationLogs = ref(false)
-const simulationLogs = ref([])
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -250,51 +221,6 @@ const handleExportReport = () => {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const url = `${baseUrl}/api/v1/report/${simulationId.value}/download?format=markdown`
   window.open(url, '_blank')
-}
-
-const handleFullExport = () => {
-  if (!simulationId.value) return
-  const url = exportSimulationData(simulationId.value)
-  window.open(url, '_blank')
-}
-
-const goToSimulationView = () => {
-  if (simulationId.value) {
-    // 使用查看模式参数，不会自动开始模拟
-    router.push({ 
-      name: 'SimulationRun', 
-      params: { simulationId: simulationId.value },
-      query: { view: 'true' }  // 添加查看模式标记
-    })
-  }
-}
-
-const loadSimulationLogs = async () => {
-  if (!simulationId.value) return
-  
-  try {
-    const res = await getSimulationActions(simulationId.value, { limit: 500 })
-    if (res.data?.success && res.data?.data?.actions) {
-      simulationLogs.value = res.data.data.actions.map(action => ({
-        time: action.timestamp || action.created_at,
-        platform: action.platform,
-        agent: action.agent_name || `Agent ${action.agent_id}`,
-        type: action.action_type,
-        content: action.content || action.text || ''
-      }))
-    }
-  } catch (err) {
-    console.error('加载模拟日志失败:', err)
-  }
-}
-
-const toggleSimulationLogs = async () => {
-  showSimulationLogs.value = !showSimulationLogs.value
-  
-  if (showSimulationLogs.value && simulationLogs.value.length === 0) {
-    // 加载模拟日志
-    await loadSimulationLogs()
-  }
 }
 
 const toggleMaximize = (target) => {
@@ -694,7 +620,7 @@ onMounted(() => {
     display: none;
   }
   
-  .nav-btn, .export-btn {
+  .export-btn {
     padding: 8px;
     min-width: 36px;
     justify-content: center;

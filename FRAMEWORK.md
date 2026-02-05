@@ -636,6 +636,41 @@ REPORT_AGENT_TEMPERATURE=0.5
 
 ## 11. 版本历史
 
+### v2.71 (2026-02-05)
+
+**版本固化：**
+- 🎉 正式发布 v2.71 版本
+- 🎨 UI 精简与体验优化
+- 🏗️ 模块化重构与安全增强
+- ⚡ 稳定性与容错改进
+
+**UI 改进：**
+- 🎨 首页图谱风格动态 Logo 替换静态图片（GraphLogo.vue，D3 力导向图）
+- 🎨 报告页返回逻辑与头部按钮精简：ReportView 移除「返回模拟/日志/导出全部」
+- 🎨 InteractionView 新增「返回报告」、移除「导出全部」
+- 🎨 Favicon 使用透明 GIF 避免浏览器缓存图标
+- 🎨 报告生成减少 AI 风格措辞
+
+**模块化重构：**
+- 🔧 Step2EnvSetup.vue 拆分为 6 个子组件（env-setup/）
+- 🔧 report_agent.py 拆分为模块化子包（report/logger, models, agent, manager）
+- 🔧 database.py 添加线程安全连接池（threading.local）
+
+**安全增强：**
+- 🔐 validators.py 添加 python-magic MIME 检测
+- 🔐 validators.py 文件内容扫描范围从 8KB 扩展到 64KB
+
+**修复与优化：**
+- 🐛 图谱构建失败处理：前端显示具体错误，后端指数退避重试，新增 /repair API
+- 🐛 Auto-pilot 后台任务恢复与错误处理改进
+- 🐛 Nginx 对缺失 staging 后端的容错（resolver + variables）
+- 🐛 DELETE 路由移至 simulation/control.py 解决模块导入冲突
+- 🐛 路由顺序调整，确保 /history 优先匹配
+- 🐛 Node.js 升级至 20 以支持 Vite 7.x
+
+**新增功能：**
+- ✅ 推演记录手动删除功能
+
 ### v2.70 (2026-02-02)
 
 **版本固化：**
