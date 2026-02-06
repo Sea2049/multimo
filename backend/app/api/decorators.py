@@ -344,7 +344,15 @@ def require_task_owner(task_id_param: str = "task_id"):
                     error_code=ErrorCode.RESOURCE_NOT_FOUND
                 )), 404
             task_user_id = getattr(task, "user_id", None) or (task.metadata or {}).get("user_id")
-            if task_user_id is not None and task_user_id != g.current_user["id"]:
+            if task_user_id is None:
+                # 任务未关联用户，拒绝访问（防止旧数据绕过校验）
+                logger.warning(f"任务缺少 user_id，拒绝访问: task_id={task_id}, path={request.path}")
+                return jsonify(get_error_response(
+                    error="无权操作该任务",
+                    status_code=403,
+                    error_code=ErrorCode.FORBIDDEN
+                )), 403
+            if task_user_id != g.current_user["id"]:
                 return jsonify(get_error_response(
                     error="无权操作该任务",
                     status_code=403,

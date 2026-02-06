@@ -54,20 +54,38 @@ def optimize_interview_prompt(prompt: str) -> str:
     return f"{INTERVIEW_PROMPT_PREFIX}{prompt}"
 
 
+# ============== 数据隔离辅助函数 ==============
+
+def _check_graph_belongs_to_user(graph_id: str):
+    """
+    校验 graph_id 对应的项目是否属于当前用户。
+    通过 simulation 或 project 的 graph_id 字段查找归属。
+
+    Returns:
+        None 表示校验通过；否则返回 (response, status_code)。
+    """
+    from .graph import _resolve_graph_owner_project
+    _, err = _resolve_graph_owner_project(graph_id)
+    return err
+
+
 # ============== 实体读取接口 ==============
 
 @simulation_bp.route('/entities/<graph_id>', methods=['GET'])
 def get_graph_entities(graph_id: str):
     """
-    获取图谱中的所有实体（已过滤）
-    
-    只返回符合预定义实体类型的节点（Labels不只是Entity的节点）
+    获取图谱中的所有实体（已过滤，仅图谱所有者）
     
     Query参数：
         entity_types: 逗号分隔的实体类型列表（可选，用于进一步过滤）
         enrich: 是否获取相关边信息（默认true）
     """
     try:
+        # 校验图谱归属（数据隔离）
+        err = _check_graph_belongs_to_user(graph_id)
+        if err is not None:
+            return err
+
         config = get_config()
         if not config.LLM_API_KEY:
             return jsonify(get_error_response(
@@ -102,8 +120,13 @@ def get_graph_entities(graph_id: str):
 
 @simulation_bp.route('/entities/<graph_id>/<entity_uuid>', methods=['GET'])
 def get_entity_detail(graph_id: str, entity_uuid: str):
-    """获取单个实体的详细信息"""
+    """获取单个实体的详细信息（仅图谱所有者）"""
     try:
+        # 校验图谱归属（数据隔离）
+        err = _check_graph_belongs_to_user(graph_id)
+        if err is not None:
+            return err
+
         config = get_config()
         if not config.LLM_API_KEY:
             return jsonify({
@@ -132,8 +155,13 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
 
 @simulation_bp.route('/entities/<graph_id>/by-type/<entity_type>', methods=['GET'])
 def get_entities_by_type(graph_id: str, entity_type: str):
-    """获取指定类型的所有实体"""
+    """获取指定类型的所有实体（仅图谱所有者）"""
     try:
+        # 校验图谱归属（数据隔离）
+        err = _check_graph_belongs_to_user(graph_id)
+        if err is not None:
+            return err
+
         config = get_config()
         if not config.LLM_API_KEY:
             return jsonify({
@@ -551,6 +579,7 @@ def prepare_simulation():
         task_manager = TaskManager()
         task_id = task_manager.create_task(
             task_type="simulation_prepare",
+            user_id=g.current_user["id"],
             metadata={
                 "simulation_id": simulation_id,
                 "project_id": state.project_id

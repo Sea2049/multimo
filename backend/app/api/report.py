@@ -28,6 +28,73 @@ from ..utils.validators import (
 logger = get_logger('multimo.api.report')
 
 
+# ============== 数据隔离辅助函数 ==============
+
+def _resolve_report_owner(report_id: str):
+    """
+    校验当前用户是否为报告所有者。
+    链路: report -> simulation_id -> project -> project.user_id == g.current_user["id"]
+
+    Returns:
+        (report, None) 成功；(None, (response, status_code)) 失败。
+    """
+    report = ReportManager.get_report(report_id)
+    if not report:
+        return None, (jsonify(get_error_response(
+            error=f"报告不存在: {report_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404)
+
+    simulation_id = getattr(report, "simulation_id", None)
+    if not simulation_id:
+        return None, (jsonify(get_error_response(
+            error="报告归属未知",
+            status_code=403,
+            error_code=ErrorCode.FORBIDDEN
+        )), 403)
+
+    err = _check_simulation_belongs_to_user(simulation_id)
+    if err is not None:
+        return None, err
+
+    return report, None
+
+
+def _check_simulation_belongs_to_user(simulation_id: str):
+    """
+    校验 simulation_id 对应的项目是否属于当前用户。
+
+    Returns:
+        None 表示校验通过；否则返回 (response, status_code)。
+    """
+    manager = SimulationManager()
+    state = manager.get_simulation(simulation_id)
+    if not state:
+        return (jsonify(get_error_response(
+            error=f"模拟不存在: {simulation_id}",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404)
+
+    project = ProjectManager.get_project(state.project_id)
+    if not project:
+        return (jsonify(get_error_response(
+            error="项目不存在",
+            status_code=404,
+            error_code=ErrorCode.RESOURCE_NOT_FOUND
+        )), 404)
+
+    if getattr(project, "user_id", None) != g.current_user["id"]:
+        return (jsonify(get_error_response(
+            error="无权访问该资源",
+            status_code=403,
+            error_code=ErrorCode.FORBIDDEN
+        )), 403)
+
+    return None
+
+
 # ============== 报告生成接口 ==============
 
 @report_bp.route('/generate', methods=['POST'])
@@ -193,29 +260,9 @@ def get_generate_status():
 
         # 如果提供了 simulation_id，先校验归属
         if simulation_id:
-            from ...services.simulation_manager import SimulationManager
-            from ...models.project import ProjectManager
-            sim_manager = SimulationManager()
-            state = sim_manager.get_simulation(simulation_id)
-            if not state:
-                return jsonify(get_error_response(
-                    error=f"模拟不存在: {simulation_id}",
-                    status_code=404,
-                    error_code=ErrorCode.RESOURCE_NOT_FOUND
-                )), 404
-            project = ProjectManager.get_project(state.project_id)
-            if not project:
-                return jsonify(get_error_response(
-                    error="项目不存在",
-                    status_code=404,
-                    error_code=ErrorCode.RESOURCE_NOT_FOUND
-                )), 404
-            if getattr(project, "user_id", None) != g.current_user["id"]:
-                return jsonify(get_error_response(
-                    error="无权操作该模拟",
-                    status_code=403,
-                    error_code=ErrorCode.FORBIDDEN
-                )), 403
+            err = _check_simulation_belongs_to_user(simulation_id)
+            if err is not None:
+                return err
 
             existing_report = ReportManager.get_report_by_simulation(simulation_id)
             if existing_report and existing_report.status == ReportStatus.COMPLETED:
@@ -300,30 +347,12 @@ def get_generate_status():
 @report_bp.route('/<report_id>', methods=['GET'])
 def get_report(report_id: str):
     """
-    获取报告详情
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "report_id": "report_xxxx",
-                "simulation_id": "sim_xxxx",
-                "status": "completed",
-                "outline": {...},
-                "markdown_content": "...",
-                "created_at": "...",
-                "completed_at": "..."
-            }
-        }
+    获取报告详情（仅报告所有者）
     """
     try:
-        report = ReportManager.get_report(report_id)
-        
-        if not report:
-            return jsonify({
-                "success": False,
-                "error": f"报告不存在: {report_id}"
-            }), 404
+        report, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
         
         return jsonify({
             "success": True,
@@ -338,18 +367,13 @@ def get_report(report_id: str):
 @report_bp.route('/by-simulation/<simulation_id>', methods=['GET'])
 def get_report_by_simulation(simulation_id: str):
     """
-    根据模拟ID获取报告
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "report_id": "report_xxxx",
-                ...
-            }
-        }
+    根据模拟ID获取报告（仅模拟所有者）
     """
     try:
+        err = _check_simulation_belongs_to_user(simulation_id)
+        if err is not None:
+            return err
+
         report = ReportManager.get_report_by_simulation(simulation_id)
         
         if not report:
@@ -373,7 +397,7 @@ def get_report_by_simulation(simulation_id: str):
 @report_bp.route('/list', methods=['GET'])
 def list_reports():
     """
-    列出所有报告
+    列出当前用户的报告（数据隔离）
     
     Query参数：
         simulation_id: 按模拟ID过滤（可选）
@@ -389,11 +413,35 @@ def list_reports():
     try:
         simulation_id = request.args.get('simulation_id')
         limit = request.args.get('limit', 50, type=int)
-        
+
+        # 如果指定了 simulation_id，先校验归属
+        if simulation_id:
+            err = _check_simulation_belongs_to_user(simulation_id)
+            if err is not None:
+                return err
+
         reports = ReportManager.list_reports(
             simulation_id=simulation_id,
             limit=limit
         )
+
+        # 未指定 simulation_id 时，过滤只保留当前用户的报告
+        if not simulation_id:
+            user_project_ids = set(
+                ProjectManager._get_storage().list_project_ids_by_user(
+                    g.current_user["id"]
+                )
+            )
+            sim_manager = SimulationManager()
+            filtered = []
+            for r in reports:
+                sid = getattr(r, "simulation_id", None)
+                if not sid:
+                    continue
+                state = sim_manager.get_simulation(sid)
+                if state and state.project_id in user_project_ids:
+                    filtered.append(r)
+            reports = filtered
         
         return jsonify({
             "success": True,
@@ -409,18 +457,12 @@ def list_reports():
 @report_bp.route('/<report_id>/download', methods=['GET'])
 def download_report(report_id: str):
     """
-    下载报告（Markdown格式）
-    
-    返回Markdown文件
+    下载报告（Markdown格式，仅报告所有者）
     """
     try:
-        report = ReportManager.get_report(report_id)
-        
-        if not report:
-            return jsonify({
-                "success": False,
-                "error": f"报告不存在: {report_id}"
-            }), 404
+        report, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
         
         md_path = ReportManager._get_report_markdown_path(report_id)
         
@@ -451,8 +493,12 @@ def download_report(report_id: str):
 
 @report_bp.route('/<report_id>', methods=['DELETE'])
 def delete_report(report_id: str):
-    """删除报告"""
+    """删除报告（仅报告所有者）"""
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         success = ReportManager.delete_report(report_id)
         
         if not success:
@@ -530,6 +576,11 @@ def chat_with_report_agent():
                 "error": "输入包含敏感字符"
             }), 400
         
+        # 校验模拟归属（数据隔离）
+        err = _check_simulation_belongs_to_user(simulation_id)
+        if err is not None:
+            return err
+
         # 获取模拟和项目信息
         manager = SimulationManager()
         state = manager.get_simulation(simulation_id)
@@ -580,22 +631,13 @@ def chat_with_report_agent():
 @report_bp.route('/<report_id>/progress', methods=['GET'])
 def get_report_progress(report_id: str):
     """
-    获取报告生成进度（实时）
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "status": "generating",
-                "progress": 45,
-                "message": "正在生成章节: 关键发现",
-                "current_section": "关键发现",
-                "completed_sections": ["执行摘要", "模拟背景"],
-                "updated_at": "2025-12-09T..."
-            }
-        }
+    获取报告生成进度（实时，仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         progress = ReportManager.get_progress(report_id)
         
         if not progress:
@@ -617,29 +659,13 @@ def get_report_progress(report_id: str):
 @report_bp.route('/<report_id>/sections', methods=['GET'])
 def get_report_sections(report_id: str):
     """
-    获取已生成的章节列表（分章节输出）
-    
-    前端可以轮询此接口获取已生成的章节内容，无需等待整个报告完成
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "report_id": "report_xxxx",
-                "sections": [
-                    {
-                        "filename": "section_01.md",
-                        "section_index": 1,
-                        "content": "## 执行摘要\\n\\n..."
-                    },
-                    ...
-                ],
-                "total_sections": 3,
-                "is_complete": false
-            }
-        }
+    获取已生成的章节列表（分章节输出，仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         sections = ReportManager.get_generated_sections(report_id)
         
         # 获取报告状态
@@ -664,18 +690,13 @@ def get_report_sections(report_id: str):
 @report_bp.route('/<report_id>/section/<int:section_index>', methods=['GET'])
 def get_single_section(report_id: str, section_index: int):
     """
-    获取单个章节内容
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "filename": "section_01.md",
-                "content": "## 执行摘要\\n\\n..."
-            }
-        }
+    获取单个章节内容（仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         section_path = ReportManager._get_section_path(report_id, section_index)
         
         if not os.path.exists(section_path):
@@ -723,6 +744,11 @@ def check_report_status(simulation_id: str):
         }
     """
     try:
+        # 校验模拟归属（数据隔离）
+        err = _check_simulation_belongs_to_user(simulation_id)
+        if err is not None:
+            return err
+
         report = ReportManager.get_report_by_simulation(simulation_id)
         
         has_report = report is not None
@@ -753,44 +779,13 @@ def check_report_status(simulation_id: str):
 @report_bp.route('/<report_id>/agent-log', methods=['GET'])
 def get_agent_log(report_id: str):
     """
-    获取 Report Agent 的详细执行日志
-    
-    实时获取报告生成过程中的每一步动作，包括：
-    - 报告开始、规划开始/完成
-    - 每个章节的开始、工具调用、LLM响应、完成
-    - 报告完成或失败
-    
-    Query参数：
-        from_line: 从第几行开始读取（可选，默认0，用于增量获取）
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "logs": [
-                    {
-                        "timestamp": "2025-12-13T...",
-                        "elapsed_seconds": 12.5,
-                        "report_id": "report_xxxx",
-                        "action": "tool_call",
-                        "stage": "generating",
-                        "section_title": "执行摘要",
-                        "section_index": 1,
-                        "details": {
-                            "tool_name": "insight_forge",
-                            "parameters": {...},
-                            ...
-                        }
-                    },
-                    ...
-                ],
-                "total_lines": 25,
-                "from_line": 0,
-                "has_more": false
-            }
-        }
+    获取 Report Agent 的详细执行日志（仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         from_line = request.args.get('from_line', 0, type=int)
         
         log_data = ReportManager.get_agent_log(report_id, from_line=from_line)
@@ -808,18 +803,13 @@ def get_agent_log(report_id: str):
 @report_bp.route('/<report_id>/agent-log/stream', methods=['GET'])
 def stream_agent_log(report_id: str):
     """
-    获取完整的 Agent 日志（一次性获取全部）
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "logs": [...],
-                "count": 25
-            }
-        }
+    获取完整的 Agent 日志（仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         logs = ReportManager.get_agent_log_stream(report_id)
         
         return jsonify({
@@ -840,31 +830,13 @@ def stream_agent_log(report_id: str):
 @report_bp.route('/<report_id>/console-log', methods=['GET'])
 def get_console_log(report_id: str):
     """
-    获取 Report Agent 的控制台输出日志
-    
-    实时获取报告生成过程中的控制台输出（INFO、WARNING等），
-    这与 agent-log 接口返回的结构化 JSON 日志不同，
-    是纯文本格式的控制台风格日志。
-    
-    Query参数：
-        from_line: 从第几行开始读取（可选，默认0，用于增量获取）
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "logs": [
-                    "[19:46:14] INFO: 搜索完成: 找到 15 条相关事实",
-                    "[19:46:14] INFO: 图谱搜索: graph_id=xxx, query=...",
-                    ...
-                ],
-                "total_lines": 100,
-                "from_line": 0,
-                "has_more": false
-            }
-        }
+    获取 Report Agent 的控制台输出日志（仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         from_line = request.args.get('from_line', 0, type=int)
         
         log_data = ReportManager.get_console_log(report_id, from_line=from_line)
@@ -882,18 +854,13 @@ def get_console_log(report_id: str):
 @report_bp.route('/<report_id>/console-log/stream', methods=['GET'])
 def stream_console_log(report_id: str):
     """
-    获取完整的控制台日志（一次性获取全部）
-    
-    返回：
-        {
-            "success": true,
-            "data": {
-                "logs": [...],
-                "count": 100
-            }
-        }
+    获取完整的控制台日志（仅报告所有者）
     """
     try:
+        _, err = _resolve_report_owner(report_id)
+        if err is not None:
+            return err
+
         logs = ReportManager.get_console_log_stream(report_id)
         
         return jsonify({
@@ -954,6 +921,12 @@ def search_graph_tool():
                 "error": "输入包含敏感字符"
             }), 400
         
+        # 校验图谱归属（数据隔离）
+        from .graph import _resolve_graph_owner_project
+        _, err = _resolve_graph_owner_project(graph_id)
+        if err is not None:
+            return err
+
         from ..services.zep_tools import ZepToolsService
         
         tools = ZepToolsService()
@@ -1004,6 +977,12 @@ def get_graph_statistics_tool():
                 "error": "无效的 graph_id 格式"
             }), 400
         
+        # 校验图谱归属（数据隔离）
+        from .graph import _resolve_graph_owner_project
+        _, err = _resolve_graph_owner_project(graph_id)
+        if err is not None:
+            return err
+
         from ..services.zep_tools import ZepToolsService
         
         tools = ZepToolsService()
